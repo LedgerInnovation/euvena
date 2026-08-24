@@ -3,6 +3,7 @@
     "name": "EUPI Wallet",
     "slug": "eupi-wallet",
     "version": "0.0.0",
+    "scheme": "eupi",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

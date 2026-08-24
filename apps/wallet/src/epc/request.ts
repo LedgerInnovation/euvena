@@ -167,6 +167,36 @@ export function buildPaymentRequest(payee: Payee, form: RequestForm): BuildReque
   }
 }
 
+export interface RequestRow {
+  label: string;
+  value: string;
+}
+
+/**
+ * The decoded request as the labelled rows the guidelines recommend printing
+ * beside the code, in an invoice-style presentation.
+ *
+ * Built from the decoded payload rather than from the form, so the rows on
+ * screen and the rows in a shared message both say what a scanner reads.
+ */
+export function summarizeRequest(data: EpcQrData): RequestRow[] {
+  const rows: RequestRow[] = [
+    { label: "Payee", value: data.name },
+    { label: "IBAN", value: formatIbanForDisplay(data.iban) },
+  ];
+  if (data.bic !== undefined) rows.push({ label: "BIC", value: data.bic });
+  rows.push({
+    label: "Amount",
+    value:
+      data.amount === undefined
+        ? "entered by the payer"
+        : `EUR ${formatAmountForDisplay(data.amount)}`,
+  });
+  if (data.reference !== undefined) rows.push({ label: "Reference", value: data.reference });
+  if (data.text !== undefined) rows.push({ label: "Text", value: data.text });
+  return rows;
+}
+
 /** Groups an IBAN into blocks of four, the presentation format of ISO 13616. */
 export function formatIbanForDisplay(iban: string): string {
   return iban.replace(/(.{4})/g, "$1 ").trim();
