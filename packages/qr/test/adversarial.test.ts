@@ -43,6 +43,39 @@ describe("EPC069 delimiter injection", () => {
   });
 });
 
+describe("EPC069 invisible formatting characters", () => {
+  it("rejects line and paragraph separators the way it rejects line feeds", () => {
+    // The payload structure survives U+2028/U+2029, but most text displays
+    // render them as line breaks, so a decoded value could visually push a
+    // row of payment data out of place.
+    for (const hostile of ["Alice\u2028Bob", "Alice\u2029Bob"]) {
+      expect(() => encodeEpcQr({ name: hostile, iban: "BE72000000001616" })).toThrow(EpcQrError);
+    }
+  });
+
+  it("rejects bidirectional formatting characters in every free-text element", () => {
+    // These reorder what a reader sees without changing the bytes, so the
+    // displayed payment data can read differently from what it says.
+    const base = { name: "Alice", iban: "BE72000000001616" } as const;
+    for (const bidi of ["\u061C", "\u200E", "\u200F", "\u202A", "\u202E", "\u2066", "\u2069"]) {
+      expect(() => encodeEpcQr({ ...base, name: `Alice${bidi}Bob` })).toThrow(EpcQrError);
+      expect(() => encodeEpcQr({ ...base, text: `pay${bidi}now` })).toThrow(EpcQrError);
+      expect(() => encodeEpcQr({ ...base, information: `note${bidi}here` })).toThrow(EpcQrError);
+    }
+  });
+
+  it("rejects them on decode, so a scanned code cannot carry them in", () => {
+    const name = ["BCD", "002", "1", "SCT", "", "Alice\u202EBob", "BE72000000001616"].join("\n");
+    expect(() => decodeEpcQr(name)).toThrow(EpcQrError);
+    const text = [
+      "BCD", "002", "1", "SCT", "", "Alice", "BE72000000001616", "", "", "", "pay\u2028now",
+    ].join("\n");
+    expect(() => decodeEpcQr(text)).toThrow(EpcQrError);
+    const { issues } = decodeEpcQr(text, { strict: false });
+    expect(issues.some((i) => /invisible formatting/.test(i.message))).toBe(true);
+  });
+});
+
 describe("EPC069 structural strictness", () => {
   it("rejects charset segments that are not exactly one digit", () => {
     for (const charset of ["01", " 1", "1.0", "1e0", "+1", ""]) {
@@ -238,6 +271,28 @@ describe("MSCT decoded control characters", () => {
     expect(() => decodeMsctQr(url)).toThrow(MsctQrError);
     const { issues } = decodeMsctQr(url, { strict: false });
     expect(issues.some((i) => /control characters/.test(i.message))).toBe(true);
+  });
+});
+
+describe("MSCT invisible formatting characters", () => {
+  it("rejects them in free-text payment data on encode", () => {
+    expect(() =>
+      encodeMsctPayeeClear({
+        ...COMMON,
+        context: "m",
+        name: "Alice\u2028Bob",
+        iban: "BE72000000001616",
+        instrument: "INST",
+        amount: "1",
+      }),
+    ).toThrow(MsctQrError);
+  });
+
+  it("rejects percent-encoded bidirectional characters on decode", () => {
+    const url = "https://qr.example.org/1/m/AB1/?iss=XY9&tok=a%E2%80%AEb";
+    expect(() => decodeMsctQr(url)).toThrow(MsctQrError);
+    const { issues } = decodeMsctQr(url, { strict: false });
+    expect(issues.some((i) => /invisible formatting/.test(i.message))).toBe(true);
   });
 });
 
