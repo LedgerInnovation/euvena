@@ -6,9 +6,10 @@
  * of the same fields. There is one codec and one source of truth: a link built
  * beside a code always decodes to the values that code carries.
  *
- * The scheme is the wallet's own and the link has no host, so a shared request
- * names no server. Nothing about it is resolved over the network and a link
- * that is opened is read entirely on the device that opened it.
+ * The scheme is the wallet's own and the word after it names an action, not a
+ * server, even though it occupies the spot a web address uses for its host.
+ * Nothing about a shared request is resolved over the network and a link that
+ * is opened is read entirely on the device that opened it.
  *
  * Links are built and parsed with string operations and the global percent
  * encoding functions rather than with `URL`, whose React Native implementation
@@ -22,8 +23,11 @@ import { summarizeRequest } from "./request";
 /** URI scheme of a shared request. */
 export const REQUEST_LINK_SCHEME = "eupi";
 
-/** Path of a shared request, after the scheme. */
-export const REQUEST_LINK_PATH = "request";
+/**
+ * The word after the scheme, naming what a link carries. It sits where a web
+ * address keeps its host, so URL parsers report it as one; it names no server.
+ */
+export const REQUEST_LINK_ACTION = "request";
 
 /** Query parameter holding the percent-encoded EPC069-12 payload. */
 export const REQUEST_LINK_PARAM = "epc";
@@ -32,11 +36,23 @@ export type ParsedRequestLink =
   | { ok: true; payload: string; data: EpcQrData }
   | { ok: false; reason: string };
 
-const NOT_A_REQUEST_LINK = `not a ${REQUEST_LINK_SCHEME}://${REQUEST_LINK_PATH} link`;
+const NOT_A_REQUEST_LINK = `not a ${REQUEST_LINK_SCHEME}://${REQUEST_LINK_ACTION} link`;
 
-/** Wraps an EPC069-12 payload into the link form of the same request. */
+/**
+ * Wraps an EPC069-12 payload into the link form of the same request.
+ *
+ * On top of percent encoding, the characters it leaves bare that message apps
+ * commonly split off the end of a link (".", "!", "'", parentheses, "*") are
+ * escaped as well. A link travels as plain text and remittance text decides
+ * how it ends; kept inside escapes, a clipped link reads as damaged instead of
+ * decoding to an altered request.
+ */
 export function buildRequestLink(payload: string): string {
-  return `${REQUEST_LINK_SCHEME}://${REQUEST_LINK_PATH}?${REQUEST_LINK_PARAM}=${encodeURIComponent(payload)}`;
+  const encoded = encodeURIComponent(payload).replace(
+    /[.!'()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `${REQUEST_LINK_SCHEME}://${REQUEST_LINK_ACTION}?${REQUEST_LINK_PARAM}=${encoded}`;
 }
 
 /**
@@ -51,18 +67,26 @@ export function parseRequestLink(link: string): ParsedRequestLink {
 
   const schemeEnd = trimmed.indexOf("://");
   if (schemeEnd === -1) return { ok: false, reason: NOT_A_REQUEST_LINK };
-  // A scheme is case-insensitive (RFC 3986 section 3.1), the path is not.
+  // A scheme is case-insensitive (RFC 3986 section 3.1) and normalizers do
+  // lowercase it. The word after it is compared exactly: the wallet only emits
+  // lowercase, and parsers pass this part of a custom-scheme link through as
+  // written.
   if (trimmed.slice(0, schemeEnd).toLowerCase() !== REQUEST_LINK_SCHEME) {
     return { ok: false, reason: NOT_A_REQUEST_LINK };
   }
 
   const rest = trimmed.slice(schemeEnd + 3);
   const queryStart = rest.indexOf("?");
-  if (queryStart === -1 || rest.slice(0, queryStart) !== REQUEST_LINK_PATH) {
+  if (queryStart === -1 || rest.slice(0, queryStart) !== REQUEST_LINK_ACTION) {
     return { ok: false, reason: NOT_A_REQUEST_LINK };
   }
 
-  const encoded = findParameter(rest.slice(queryStart + 1), REQUEST_LINK_PARAM);
+  // The query ends at the first "#" (RFC 3986 section 3.4). The wallet never
+  // builds a fragment, but a stray one must not ride into the payload.
+  const fragmentStart = rest.indexOf("#", queryStart + 1);
+  const query = rest.slice(queryStart + 1, fragmentStart === -1 ? rest.length : fragmentStart);
+
+  const encoded = findParameter(query, REQUEST_LINK_PARAM);
   if (encoded === undefined) {
     return { ok: false, reason: "the link carries no payment request" };
   }
@@ -79,7 +103,12 @@ export function parseRequestLink(link: string): ParsedRequestLink {
   try {
     return { ok: true, payload, data: decodeEpcQr(payload).data };
   } catch (error) {
-    if (error instanceof EpcQrError) return { ok: false, reason: error.message };
+    if (error instanceof EpcQrError) {
+      // The codec's message can repeat the input it rejected, and a link's
+      // payload is someone else's writing. Describe it instead, the way
+      // validatePayee replaces messages that would echo a typed value.
+      return { ok: false, reason: "the link does not carry a valid payment request" };
+    }
     throw error;
   }
 }

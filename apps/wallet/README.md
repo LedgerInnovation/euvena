@@ -52,10 +52,13 @@ codec and one source of truth, so a link shared beside a code decodes to exactly
 holds. Reading one back runs the payload through the decoder in strict mode, the same way a
 scanned code is read, so a link cannot carry a request that a code could not.
 
-The link has no host. Nothing about a shared request is resolved over the network and a link that
-is opened is read entirely on the device that opened it. Percent escapes are the only decoding
-applied when reading one: "+" stays a plus rather than becoming a space, because the wallet never
-emits an unescaped one and a remittance line may legitimately contain it.
+The link names no server. `request` sits where a web address keeps its host, but it is a word for
+the wallet, not a place on a network: nothing about a shared request is resolved over the network
+and a link that is opened is read entirely on the device that opened it. Percent escapes are the
+only decoding applied when reading one: "+" stays a plus rather than becoming a space, because the
+wallet never emits an unescaped one and a remittance line may legitimately contain it. Punctuation
+that message apps like to split off the end of a link is kept inside escapes, so a link that does
+get clipped reads as damaged instead of decoding to an altered request.
 
 `eupi` is registered as the app's URI scheme. Handling an incoming link is part of the scan and
 review flow and is not wired up yet.

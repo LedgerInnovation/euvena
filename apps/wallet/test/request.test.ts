@@ -8,6 +8,7 @@ import {
   formatIbanForDisplay,
   normalizeAmountInput,
   normalizePayee,
+  summarizeRequest,
   validatePayee,
   type Payee,
 } from "../src/epc/request";
@@ -208,6 +209,29 @@ describe("normalizePayee", () => {
     expect(
       normalizePayee({ name: " Acme ", iban: " de33 1002 0500 0001 1947 00 ", bic: " bfswde33mue " }),
     ).toEqual({ name: "Acme", iban: "DE33100205000001194700", bic: "BFSWDE33MUE" });
+  });
+});
+
+describe("summarizeRequest", () => {
+  it("prints the BIC row exactly when the decoded payload carries one", () => {
+    const request = buildPaymentRequest(
+      {
+        name: "Wikimedia Foerdergesellschaft",
+        iban: "DE33 1002 0500 0001 1947 00",
+        bic: "BFSWDE33BER",
+      },
+      { amount: "13,05", remittanceKind: "text", remittance: "Spende fuer Wikipedia" },
+    );
+    expect(request.ok).toBe(true);
+    if (!request.ok) return;
+
+    expect(summarizeRequest(request.data)).toEqual([
+      { label: "Payee", value: "Wikimedia Foerdergesellschaft" },
+      { label: "IBAN", value: "DE33 1002 0500 0001 1947 00" },
+      { label: "BIC", value: "BFSWDE33BER" },
+      { label: "Amount", value: "EUR 13,05" },
+      { label: "Text", value: "Spende fuer Wikipedia" },
+    ]);
   });
 });
 

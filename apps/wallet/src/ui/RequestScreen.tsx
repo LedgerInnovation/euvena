@@ -53,7 +53,11 @@ const REMITTANCE_KINDS: {
   },
 ];
 
-/** Subject the share sheet offers to destinations that have one, such as mail. */
+/**
+ * Subject offered to destinations that have one, such as mail. Android reads
+ * it from the content title and iOS from the subject option, so the share
+ * call passes it as both.
+ */
 const SHARE_TITLE = "Payment request";
 
 type SymbolResult = { symbol: QrSymbol } | { error: string };
@@ -193,16 +197,25 @@ function QrCodeCard({ symbol, size }: { symbol: QrSymbol; size: number }) {
  * destination is the user's choice.
  */
 function ShareRequest({ payload, data }: { payload: string; data: EpcQrData }) {
+  const [sharing, setSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const onShare = useCallback(async () => {
+    setSharing(true);
     setError(null);
     try {
-      await Share.share({ title: SHARE_TITLE, message: buildShareMessage(data, payload) });
+      await Share.share(
+        { title: SHARE_TITLE, message: buildShareMessage(data, payload) },
+        { subject: SHARE_TITLE },
+      );
     } catch (cause) {
-      // Dismissing the sheet resolves with a "dismissedAction" result. Only a
-      // failure to open it at all rejects, which is worth saying out loud.
+      // Android settles the promise as soon as the sheet is launched; iOS
+      // settles it when the sheet closes, and a destination that fails after
+      // being picked arrives here too. Whatever the platform reports is worth
+      // saying out loud.
       setError(cause instanceof Error ? cause.message : "the request could not be shared");
+    } finally {
+      setSharing(false);
     }
   }, [payload, data]);
 
@@ -213,7 +226,9 @@ function ShareRequest({ payload, data }: { payload: string; data: EpcQrData }) {
           void onShare();
         }}
         accessibilityRole="button"
-        style={styles.primary}
+        accessibilityState={{ disabled: sharing, busy: sharing }}
+        disabled={sharing}
+        style={[styles.primary, sharing ? styles.primaryDisabled : null]}
       >
         <Text style={styles.primaryLabel}>Share this request</Text>
       </Pressable>
@@ -345,6 +360,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     alignItems: "center",
+  },
+  primaryDisabled: {
+    opacity: 0.4,
   },
   primaryLabel: {
     fontSize: 15,
