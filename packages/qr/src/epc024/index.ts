@@ -222,7 +222,10 @@ function requireIssuer(issuer: string, issues: MsctIssue[]): void {
 /** Rejects control characters in free-text payment data. */
 function checkText(field: string, value: string | undefined, issues: MsctIssue[]): void {
   if (value !== undefined && hasControlChars(value)) {
-    issues.push({ field, message: `${field} must not contain control characters` });
+    issues.push({
+      field,
+      message: `${field} must not contain control characters or invisible formatting`,
+    });
   }
 }
 
@@ -543,7 +546,10 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
   for (const [field, name] of Object.entries(keys)) {
     for (const value of params.getAll(name)) {
       if (hasControlChars(value)) {
-        issues.push({ field, message: `${field} must not contain control characters` });
+        issues.push({
+          field,
+          message: `${field} must not contain control characters or invisible formatting`,
+        });
       }
     }
   }

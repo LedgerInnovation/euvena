@@ -98,7 +98,10 @@ function collectIssues(data: EpcQrData): EpcQrIssue[] {
     ["information", data.information],
   ] as const) {
     if (value !== undefined && hasControlChars(value)) {
-      issues.push({ element, message: `${element} must not contain control characters` });
+      issues.push({
+        element,
+        message: `${element} must not contain control characters or invisible formatting`,
+      });
     }
   }
 

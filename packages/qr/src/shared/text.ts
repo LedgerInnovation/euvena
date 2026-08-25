@@ -33,16 +33,30 @@ export function isLatin1(text: string): boolean {
 }
 
 /**
- * C0 and C1 control characters, including CR and LF.
+ * Characters that must never appear in payment data.
  *
- * These must never appear in payment data. EPC069-12 joins its elements with
- * line separators, so a control character inside a field would shift every
- * following element: a payload whose beneficiary name contained a line feed
- * could displace the IBAN that the payer's bank app displays and credits.
+ * C0 and C1 control characters, including CR and LF: EPC069-12 joins its
+ * elements with line separators, so a control character inside a field would
+ * shift every following element. A payload whose beneficiary name contained a
+ * line feed could displace the IBAN that the payer's bank app displays and
+ * credits.
+ *
+ * U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR: the payload structure
+ * survives them, but most text displays render them as line breaks, so a
+ * decoded value could visually push a row of payment data out of place.
+ *
+ * The bidirectional formatting characters (U+061C, U+200E, U+200F,
+ * U+202A..U+202E, U+2066..U+2069): they reorder what a reader sees without
+ * changing the bytes, so displayed payment data can read differently from
+ * what it says.
  */
-const CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/;
+const CONTROL_CHARS =
+  /[\u0000-\u001F\u007F-\u009F\u061C\u200E\u200F\u2028\u2029\u202A-\u202E\u2066-\u2069]/;
 
-/** True when the text contains a C0/C1 control character (including CR or LF). */
+/**
+ * True when the text contains a C0/C1 control character (including CR or LF),
+ * a line or paragraph separator, or a bidirectional formatting character.
+ */
 export function hasControlChars(text: string): boolean {
   return CONTROL_CHARS.test(text);
 }
