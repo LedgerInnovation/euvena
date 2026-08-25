@@ -10,8 +10,9 @@ no accounts and no backend.
 ## Status
 
 The request flow is implemented. Enter an amount and remittance information to get an EPC069-12
-code with the decoded values printed beside it. Sharing, scanning and handoff are not implemented
-yet; see the checklist on the tracking issue.
+code with the decoded values printed beside it, and share that request through the share sheet of
+the operating system. Reading a shared link back into the app, scanning and handoff are not
+implemented yet; see the checklist on the tracking issue.
 
 ## The request flow
 
@@ -32,6 +33,35 @@ segments, because byte mode is what the character set element of the payload des
 
 The values shown below the code are decoded back out of the payload rather than read from the
 form, so what the payer reads is what a scanner reads.
+
+## Sharing a request
+
+A code works when the payer is in front of it. When they are not, the same request goes out
+through the share sheet of the operating system as a short message: the decoded values, then a
+link. The wallet sends nothing itself. It hands the text to the system and the user picks the
+destination.
+
+The link is:
+
+```
+eupi://request?epc=<percent-encoded EPC069-12 payload>
+```
+
+It carries the payload the code carries, not a second encoding of the same fields. There is one
+codec and one source of truth, so a link shared beside a code decodes to exactly what that code
+holds. Reading one back runs the payload through the decoder in strict mode, the same way a
+scanned code is read, so a link cannot carry a request that a code could not.
+
+The link names no server. `request` sits where a web address keeps its host, but it is a word for
+the wallet, not a place on a network: nothing about a shared request is resolved over the network
+and a link that is opened is read entirely on the device that opened it. Percent escapes are the
+only decoding applied when reading one: "+" stays a plus rather than becoming a space, because the
+wallet never emits an unescaped one and a remittance line may legitimately contain it. Punctuation
+that message apps like to split off the end of a link is kept inside escapes, so a link that does
+get clipped reads as damaged instead of decoding to an altered request.
+
+`eupi` is registered as the app's URI scheme. Handling an incoming link is part of the scan and
+review flow and is not wired up yet.
 
 ## Running it
 
@@ -63,7 +93,7 @@ pnpm --filter @eupi/wallet build   # bundles the JS, no native toolchain require
 | Path | Purpose |
 | --- | --- |
 | `App.tsx` | Root component, loads the payee settings and switches between the two screens |
-| `src/epc/` | Form state to EPC069-12 payload, plus the display formatting |
+| `src/epc/` | Form state to EPC069-12 payload, the link form of a request, plus the display formatting |
 | `src/qr/` | QR symbol construction and its SVG path |
 | `src/settings/` | Payee settings, on-device only |
 | `src/ui/` | Screens and the QR view |

@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -10,11 +11,11 @@ import {
 } from "react-native";
 import { EPC069_MAX_BYTES, byteLength, type EpcQrData } from "@eupi/qr";
 
+import { buildShareMessage } from "../epc/link";
 import {
   EMPTY_FORM,
   buildPaymentRequest,
-  formatAmountForDisplay,
-  formatIbanForDisplay,
+  summarizeRequest,
   type Payee,
   type RemittanceKind,
   type RequestForm,
@@ -51,6 +52,13 @@ const REMITTANCE_KINDS: {
     hint: "Structured creditor reference, up to 35 characters",
   },
 ];
+
+/**
+ * Subject offered to destinations that have one, such as mail. Android reads
+ * it from the content title and iOS from the subject option, so the share
+ * call passes it as both.
+ */
+const SHARE_TITLE = "Payment request";
 
 type SymbolResult = { symbol: QrSymbol } | { error: string };
 
@@ -158,6 +166,9 @@ export function RequestScreen({ payee, onEditPayee }: RequestScreenProps) {
           <View style={styles.code}>
             <QrCodeCard symbol={rendered.symbol} size={codeSize} />
             <DecodedSummary payload={request.payload} data={request.data} />
+            {/* Keyed on the payload so an error from one request is not left
+                standing over the next one. */}
+            <ShareRequest key={request.payload} payload={request.payload} data={request.data} />
           </View>
         )
       ) : null}
@@ -178,25 +189,66 @@ function QrCodeCard({ symbol, size }: { symbol: QrSymbol; size: number }) {
 }
 
 /**
+ * Hands the request to the share sheet of the operating system.
+ *
+ * What leaves the device is the link form of the payload the code carries,
+ * with the decoded values above it so the message reads on its own. The wallet
+ * sends nothing itself: the share sheet belongs to the system and the
+ * destination is the user's choice.
+ */
+function ShareRequest({ payload, data }: { payload: string; data: EpcQrData }) {
+  const [sharing, setSharing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onShare = useCallback(async () => {
+    setSharing(true);
+    setError(null);
+    try {
+      await Share.share(
+        { title: SHARE_TITLE, message: buildShareMessage(data, payload) },
+        { subject: SHARE_TITLE },
+      );
+    } catch (cause) {
+      // Android settles the promise as soon as the sheet is launched; iOS
+      // settles it when the sheet closes, and a destination that fails after
+      // being picked arrives here too. Whatever the platform reports is worth
+      // saying out loud.
+      setError(cause instanceof Error ? cause.message : "the request could not be shared");
+    } finally {
+      setSharing(false);
+    }
+  }, [payload, data]);
+
+  return (
+    <View style={styles.share}>
+      <Pressable
+        onPress={() => {
+          void onShare();
+        }}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: sharing, busy: sharing }}
+        disabled={sharing}
+        style={[styles.primary, sharing ? styles.primaryDisabled : null]}
+      >
+        <Text style={styles.primaryLabel}>Share this request</Text>
+      </Pressable>
+      <Text style={styles.hint}>
+        The link carries the same payload as the code, so a payer who opens it reads the request
+        the code holds. Nothing is resolved over the network.
+      </Text>
+      {error === null ? null : <Text style={styles.issue}>{error}</Text>}
+    </View>
+  );
+}
+
+/**
  * The decoded payload, in the invoice-style presentation the guidelines
  * recommend printing beside the code.
  */
 function DecodedSummary({ payload, data }: { payload: string; data: EpcQrData }) {
-  const rows: { label: string; value: string }[] = [
-    { label: "Payee", value: data.name },
-    { label: "IBAN", value: formatIbanForDisplay(data.iban) },
-  ];
-  if (data.bic !== undefined) rows.push({ label: "BIC", value: data.bic });
-  rows.push({
-    label: "Amount",
-    value: data.amount === undefined ? "entered by the payer" : `EUR ${formatAmountForDisplay(data.amount)}`,
-  });
-  if (data.reference !== undefined) rows.push({ label: "Reference", value: data.reference });
-  if (data.text !== undefined) rows.push({ label: "Text", value: data.text });
-
   return (
     <View style={styles.summary}>
-      {rows.map((row) => (
+      {summarizeRequest(data).map((row) => (
         <View key={row.label} style={styles.row}>
           <Text style={styles.rowLabel}>{row.label}</Text>
           <Text style={styles.rowValue}>{row.value}</Text>
@@ -298,6 +350,24 @@ const styles = StyleSheet.create({
   },
   summary: {
     gap: 8,
+  },
+  share: {
+    gap: 8,
+  },
+  primary: {
+    backgroundColor: "#1b64c8",
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  primaryDisabled: {
+    opacity: 0.4,
+  },
+  primaryLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#ffffff",
   },
   row: {
     flexDirection: "row",
