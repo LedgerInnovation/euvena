@@ -198,8 +198,45 @@ function HandoffActions({ data }: { data: EpcQrData }) {
     }
   };
 
+  const fields = handoffFields(data);
+  const reference = fields.find((field) => field.label === "Reference");
+  const rest = reference === undefined ? fields : fields.filter((field) => field !== reference);
+
+  const row = (field: HandoffField) => (
+    <View key={field.label} style={styles.row}>
+      <Text style={styles.rowLabel}>{field.label}</Text>
+      <Text style={styles.rowValue} numberOfLines={1}>
+        {field.value}
+      </Text>
+      <Pressable
+        onPress={() => {
+          void onCopy(field);
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={
+          copied === field.label ? `${field.label} copied` : `Copy ${field.label}`
+        }
+      >
+        <Text style={styles.link}>{copied === field.label ? "Copied" : "Copy"}</Text>
+      </Pressable>
+    </View>
+  );
+
   return (
     <View style={styles.handoff}>
+      {/* The URI cannot carry the structured reference, so its warning and its
+          copy action stand BEFORE the launch action: the payer must be able to
+          take the reference along before leaving for the banking app, not
+          discover its absence after the transfer form is already open. */}
+      {reference === undefined ? null : (
+        <>
+          <Text style={styles.issue}>
+            The link cannot carry the structured reference. Copy it first and paste it into the
+            reference field of your banking app.
+          </Text>
+          {row(reference)}
+        </>
+      )}
       <Pressable
         onPress={() => {
           void onOpen();
@@ -211,36 +248,9 @@ function HandoffActions({ data }: { data: EpcQrData }) {
       >
         <Text style={styles.primaryLabel}>Open your banking app</Text>
       </Pressable>
-      {/* The URI never carries the structured reference: payto has no field
-          with that meaning, so converting it would strip its semantics. The
-          payer is told to move it by hand instead. */}
-      {data.reference === undefined ? null : (
-        <Text style={styles.hint}>
-          The link cannot carry the structured reference. Copy it below into the reference field
-          of your banking app.
-        </Text>
-      )}
       {noHandler ? <Text style={styles.issue}>{NO_HANDLER_NOTICE}</Text> : null}
       <Text style={styles.label}>Copy into a transfer form</Text>
-      {handoffFields(data).map((field) => (
-        <View key={field.label} style={styles.row}>
-          <Text style={styles.rowLabel}>{field.label}</Text>
-          <Text style={styles.rowValue} numberOfLines={1}>
-            {field.value}
-          </Text>
-          <Pressable
-            onPress={() => {
-              void onCopy(field);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={
-              copied === field.label ? `${field.label} copied` : `Copy ${field.label}`
-            }
-          >
-            <Text style={styles.link}>{copied === field.label ? "Copied" : "Copy"}</Text>
-          </Pressable>
-        </View>
-      ))}
+      {rest.map(row)}
       <Text style={styles.hint}>
         The link is a payto address built from the code. If no app on this device answers it,
         your banking app may still scan these codes directly.
