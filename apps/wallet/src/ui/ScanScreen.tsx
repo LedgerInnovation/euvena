@@ -211,6 +211,15 @@ function HandoffActions({ data }: { data: EpcQrData }) {
       >
         <Text style={styles.primaryLabel}>Open your banking app</Text>
       </Pressable>
+      {/* The URI never carries the structured reference: payto has no field
+          with that meaning, so converting it would strip its semantics. The
+          payer is told to move it by hand instead. */}
+      {data.reference === undefined ? null : (
+        <Text style={styles.hint}>
+          The link cannot carry the structured reference. Copy it below into the reference field
+          of your banking app.
+        </Text>
+      )}
       {noHandler ? <Text style={styles.issue}>{NO_HANDLER_NOTICE}</Text> : null}
       <Text style={styles.label}>Copy into a transfer form</Text>
       {handoffFields(data).map((field) => (
@@ -224,6 +233,9 @@ function HandoffActions({ data }: { data: EpcQrData }) {
               void onCopy(field);
             }}
             accessibilityRole="button"
+            accessibilityLabel={
+              copied === field.label ? `${field.label} copied` : `Copy ${field.label}`
+            }
           >
             <Text style={styles.link}>{copied === field.label ? "Copied" : "Copy"}</Text>
           </Pressable>

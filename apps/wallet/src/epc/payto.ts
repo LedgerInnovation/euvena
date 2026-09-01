@@ -10,10 +10,17 @@
  * The mapping from EPC069-12: the IBAN becomes the authority path, with the
  * BIC ahead of it when the payload carries one (RFC 8905 section 7.3), the
  * amount becomes `amount=EUR:<value>` with the codec's canonical value, the
- * beneficiary name becomes `receiver-name` and the remittance element becomes
- * `message`, whichever of the two mutually exclusive forms it took. A purpose
- * code has no generic payto option and is dropped from the URI; it stays
- * visible in the review.
+ * beneficiary name becomes `receiver-name` and the unstructured text becomes
+ * `message`, which section 7.3 defines as the unstructured remittance
+ * information of a SEPA credit transfer.
+ *
+ * A structured creditor reference is NOT emitted. It has no interoperable
+ * payto mapping: `message` would silently downgrade it to unstructured text
+ * and `instruction` is the SEPA end-to-end identifier, a different field. A
+ * receiving app would submit the downgraded form and the creditor's
+ * reconciliation could miss it. The reference stays in the review and in the
+ * copy fields, and the screen says so beside the handoff action. A purpose
+ * code likewise has no generic option and stays visible in the review only.
  */
 
 import { type EpcQrData } from "@eupi/qr";
@@ -27,8 +34,7 @@ export function buildPaytoUri(data: EpcQrData): string {
   const options: [string, string][] = [];
   if (data.amount !== undefined) options.push(["amount", `EUR:${data.amount}`]);
   options.push(["receiver-name", data.name]);
-  const message = data.reference ?? data.text;
-  if (message !== undefined) options.push(["message", message]);
+  if (data.text !== undefined) options.push(["message", data.text]);
 
   const query = options
     .map(([name, value]) => `${name}=${encodeOptionValue(value)}`)

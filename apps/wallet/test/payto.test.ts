@@ -42,14 +42,22 @@ describe("buildPaytoUri", () => {
     expect(uri).toContain("receiver-name=");
   });
 
-  it("carries a structured reference as the message", () => {
+  it("never emits a structured reference, which payto cannot carry", () => {
+    // RFC 8905 section 7.3: "message" is the unstructured remittance
+    // information and "instruction" is the end-to-end identifier. Neither is
+    // the structured creditor reference, so emitting it through either would
+    // silently downgrade it and reconciliation could miss it.
     const data = dataFor({
       amount: "10",
       remittanceKind: "reference",
       remittance: "RF18539007547034",
     });
 
-    expect(buildPaytoUri(data)).toContain("message=RF18539007547034");
+    const uri = buildPaytoUri(data);
+
+    expect(uri).not.toContain("RF18539007547034");
+    expect(uri).not.toContain("message=");
+    expect(uri).not.toContain("instruction=");
   });
 
   it("puts the BIC ahead of the IBAN in the path", () => {
