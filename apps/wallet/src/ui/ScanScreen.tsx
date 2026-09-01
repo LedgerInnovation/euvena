@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Clipboard from "expo-clipboard";
 import { type EpcQrData } from "@eupi/qr";
 
+import { buildPaytoUri, handoffFields, type HandoffField } from "../epc/payto";
 import { summarizeRequest } from "../epc/request";
 import { readPastedRequest, readPaymentRequest, type ReadRequestResult } from "../epc/scan";
 
@@ -151,9 +153,86 @@ function ReviewPanel({ data, onReset }: { data: EpcQrData; onReset: () => void }
         Values read from the code itself. Check the name and IBAN with whoever is asking to be
         paid; the code cannot do that for you.
       </Text>
+      <HandoffActions data={data} />
       <Pressable onPress={onReset} accessibilityRole="button" style={styles.secondary}>
         <Text style={styles.secondaryLabel}>Read another</Text>
       </Pressable>
+    </View>
+  );
+}
+
+const NO_HANDLER_NOTICE =
+  "No installed app took this request. Banks have not agreed on a common link format yet, so copy the details into your banking app instead.";
+
+/**
+ * Hands the reviewed request onward. The primary action fires the payto URI
+ * and reports failure instead of asking the system first: querying installed
+ * handlers needs platform permission entries the attempt itself does not. The
+ * copy actions are always offered, because even a launched app cannot be
+ * prefilled and transfer forms are filled field by field.
+ */
+function HandoffActions({ data }: { data: EpcQrData }) {
+  const [opening, setOpening] = useState(false);
+  const [noHandler, setNoHandler] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const onOpen = async () => {
+    setOpening(true);
+    setNoHandler(false);
+    try {
+      await Linking.openURL(buildPaytoUri(data));
+    } catch {
+      // Rejection means no installed app handles payto, on either platform.
+      setNoHandler(true);
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  const onCopy = async (field: HandoffField) => {
+    try {
+      await Clipboard.setStringAsync(field.value);
+      setCopied(field.label);
+    } catch {
+      setCopied(null);
+    }
+  };
+
+  return (
+    <View style={styles.handoff}>
+      <Pressable
+        onPress={() => {
+          void onOpen();
+        }}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: opening, busy: opening }}
+        disabled={opening}
+        style={[styles.primary, opening ? styles.primaryDisabled : null]}
+      >
+        <Text style={styles.primaryLabel}>Open your banking app</Text>
+      </Pressable>
+      {noHandler ? <Text style={styles.issue}>{NO_HANDLER_NOTICE}</Text> : null}
+      <Text style={styles.label}>Copy into a transfer form</Text>
+      {handoffFields(data).map((field) => (
+        <View key={field.label} style={styles.row}>
+          <Text style={styles.rowLabel}>{field.label}</Text>
+          <Text style={styles.rowValue} numberOfLines={1}>
+            {field.value}
+          </Text>
+          <Pressable
+            onPress={() => {
+              void onCopy(field);
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={styles.link}>{copied === field.label ? "Copied" : "Copy"}</Text>
+          </Pressable>
+        </View>
+      ))}
+      <Text style={styles.hint}>
+        The link is a payto address built from the code. If no app on this device answers it,
+        your banking app may still scan these codes directly.
+      </Text>
     </View>
   );
 }
@@ -255,6 +334,10 @@ const styles = StyleSheet.create({
     color: "#b3261e",
   },
   panel: {
+    gap: 8,
+  },
+  handoff: {
+    marginTop: 12,
     gap: 8,
   },
   panelTitle: {
