@@ -28,7 +28,9 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "The camera is used to read payment QR codes."
+          "cameraPermission": "The camera is used to read payment QR codes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ]
     ]

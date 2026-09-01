@@ -48,23 +48,37 @@ const ELEMENT_LABELS: Record<string, string> = {
  * The payload shape is checked first: remittance text may legitimately carry a
  * web address, so the presence of something link-shaped inside a payload must
  * not reroute the whole input to the link parser.
+ *
+ * A payload is decoded exactly as it arrived. The codec measures the 331-byte
+ * cap on the bytes as scanned, so stripping even a trailing separator would
+ * admit an oversized code, and trailing whitespace inside the last element is
+ * part of the request, not packaging. Text from a clipboard goes through
+ * readPastedRequest instead.
  */
 export function readPaymentRequest(input: string): ReadRequestResult {
-  const trimmed = input.trim();
-  if (trimmed === "") return { ok: false, reason: "there is nothing to read" };
-
-  if (trimmed.startsWith("BCD")) {
+  if (input.startsWith("BCD")) {
     try {
-      return { ok: true, payload: trimmed, data: decodeEpcQr(trimmed).data };
+      return { ok: true, payload: input, data: decodeEpcQr(input).data };
     } catch (error) {
       if (error instanceof EpcQrError) return { ok: false, reason: describeRejection(error) };
       throw error;
     }
   }
 
+  const trimmed = input.trim();
+  if (trimmed === "") return { ok: false, reason: "there is nothing to read" };
   if (SCHEME_SHAPED.test(trimmed)) return parseRequestLink(trimmed);
 
   return { ok: false, reason: NOT_A_PAYMENT_INPUT };
+}
+
+/**
+ * The paste entry's route into readPaymentRequest. Outer whitespace on pasted
+ * text is packaging from the clipboard or the message app, so it is removed
+ * before the input is classified; everything inside passes through unchanged.
+ */
+export function readPastedRequest(input: string): ReadRequestResult {
+  return readPaymentRequest(input.trim());
 }
 
 /**

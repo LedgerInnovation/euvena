@@ -4,7 +4,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { type EpcQrData } from "@eupi/qr";
 
 import { summarizeRequest } from "../epc/request";
-import { readPaymentRequest, type ReadRequestResult } from "../epc/scan";
+import { readPastedRequest, readPaymentRequest, type ReadRequestResult } from "../epc/scan";
 
 interface ScanScreenProps {
   onBack: () => void;
@@ -38,8 +38,10 @@ export function ScanScreen({ onBack }: ScanScreenProps) {
 
       {result === null ? (
         <>
+          {/* A scanned code is read byte for byte; pasted text sheds its outer
+              whitespace first, which is clipboard packaging and not payload. */}
           <CameraSurface onRead={(text) => setResult(readPaymentRequest(text))} />
-          <PasteEntry onRead={(text) => setResult(readPaymentRequest(text))} />
+          <PasteEntry onRead={(text) => setResult(readPastedRequest(text))} />
         </>
       ) : result.ok ? (
         <ReviewPanel data={result.data} onReset={() => setResult(null)} />

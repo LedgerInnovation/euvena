@@ -178,6 +178,10 @@ export interface RequestRow {
  *
  * Built from the decoded payload rather than from the form, so the rows on
  * screen and the rows in a shared message both say what a scanner reads.
+ *
+ * Every element the payload can carry has a row here. The wallet composes no
+ * purpose or information element of its own, but the scan side reviews codes
+ * from anywhere, and a review that drops elements is not a review.
  */
 export function summarizeRequest(data: EpcQrData): RequestRow[] {
   const rows: RequestRow[] = [
@@ -192,8 +196,12 @@ export function summarizeRequest(data: EpcQrData): RequestRow[] {
         ? "entered by the payer"
         : `EUR ${formatAmountForDisplay(data.amount)}`,
   });
+  if (data.purpose !== undefined) rows.push({ label: "Purpose", value: data.purpose });
   if (data.reference !== undefined) rows.push({ label: "Reference", value: data.reference });
   if (data.text !== undefined) rows.push({ label: "Text", value: data.text });
+  if (data.information !== undefined) {
+    rows.push({ label: "Information", value: data.information });
+  }
   return rows;
 }
 

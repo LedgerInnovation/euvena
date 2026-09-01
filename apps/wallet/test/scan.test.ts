@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { EPC069_MAX_BYTES, byteLength } from "@eupi/qr";
 
 import { parseRequestLink, buildRequestLink } from "../src/epc/link";
-import { buildPaymentRequest, type Payee, type RequestForm } from "../src/epc/request";
-import { NOT_A_PAYMENT_INPUT, readPaymentRequest } from "../src/epc/scan";
+import {
+  buildPaymentRequest,
+  summarizeRequest,
+  type Payee,
+  type RequestForm,
+} from "../src/epc/request";
+import { NOT_A_PAYMENT_INPUT, readPastedRequest, readPaymentRequest } from "../src/epc/scan";
 
 const payee: Payee = {
   name: "Wikimedia Foerdergesellschaft",
@@ -51,12 +57,41 @@ describe("readPaymentRequest reads what the request side produces", () => {
     expect(read.data).toEqual(request.data);
   });
 
-  it("trims the whitespace a paste picks up", () => {
-    const read = readPaymentRequest(`\n  ${VALID}\n\n`);
+  it("sheds the outer whitespace a paste picks up", () => {
+    const read = readPastedRequest(`\n  ${VALID}\n\n`);
 
     expect(read.ok).toBe(true);
     if (!read.ok) return;
     expect(read.data.iban).toBe("DE33100205000001194700");
+  });
+
+  it("does not strip packaging from a scanned code", () => {
+    expect(readPaymentRequest(`\n${VALID}`).ok).toBe(false);
+  });
+
+  it("shows purpose and information elements a scanned code carries", () => {
+    const scanned = payloadOf([
+      "BCD",
+      "002",
+      "1",
+      "SCT",
+      "",
+      "Name",
+      "DE33100205000001194700",
+      "EUR12.00",
+      "GDDS",
+      "",
+      "Order 44",
+      "Collect at desk 3",
+    ]);
+
+    const read = readPaymentRequest(scanned);
+
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const rows = summarizeRequest(read.data);
+    expect(rows).toContainEqual({ label: "Purpose", value: "GDDS" });
+    expect(rows).toContainEqual({ label: "Information", value: "Collect at desk 3" });
   });
 
   it("reads a payload whose remittance text carries a web address as a payload", () => {
@@ -149,6 +184,32 @@ describe("rejection reasons name the element and never the value", () => {
 
   it("reports a truncated payload as a structural failure", () => {
     const read = readPaymentRequest(payloadOf(["BCD", "002", "1", "SCT"]));
+
+    expect(read.ok).toBe(false);
+    if (read.ok) return;
+    expect(read.reason).toContain("the overall structure");
+  });
+
+  it("counts the bytes of a scanned payload as they arrived", () => {
+    const atCap = payloadOf([
+      "BCD",
+      "002",
+      "1",
+      "SCT",
+      "",
+      "n".repeat(70),
+      "DE33100205000001194700",
+      "EUR1.00",
+      "CHAR",
+      "",
+      "t".repeat(140),
+      "x".repeat(67),
+    ]);
+    expect(byteLength(atCap, 1)).toBe(EPC069_MAX_BYTES);
+    expect(readPaymentRequest(atCap).ok).toBe(true);
+
+    // One separator past the cap is an oversized code, not trailing packaging.
+    const read = readPaymentRequest(`${atCap}\n`);
 
     expect(read.ok).toBe(false);
     if (read.ok) return;
