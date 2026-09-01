@@ -6,8 +6,9 @@ import { EMPTY_PAYEE, type Payee } from "./src/epc/request";
 import { loadPayee, savePayee } from "./src/settings/storage";
 import { PayeeScreen } from "./src/ui/PayeeScreen";
 import { RequestScreen } from "./src/ui/RequestScreen";
+import { ScanScreen } from "./src/ui/ScanScreen";
 
-type Screen = "request" | "payee";
+type Screen = "request" | "payee" | "scan";
 
 const READ_FAILED_NOTICE =
   "Saved settings could not be read from this device. Enter them again to build a code.";
@@ -65,8 +66,14 @@ export default function App() {
           onCancel={() => setScreen("request")}
           notice={loadFailed ? READ_FAILED_NOTICE : null}
         />
+      ) : screen === "scan" ? (
+        <ScanScreen onBack={() => setScreen("request")} />
       ) : (
-        <RequestScreen payee={payee} onEditPayee={() => setScreen("payee")} />
+        <RequestScreen
+          payee={payee}
+          onEditPayee={() => setScreen("payee")}
+          onScan={() => setScreen("scan")}
+        />
       )}
     </SafeAreaView>
   );

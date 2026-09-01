@@ -31,6 +31,7 @@ import { QrCode } from "./QrCode";
 interface RequestScreenProps {
   payee: Payee;
   onEditPayee: () => void;
+  onScan: () => void;
 }
 
 const REMITTANCE_KINDS: {
@@ -78,7 +79,7 @@ function buildSymbol(payload: string): SymbolResult {
  * guidelines recommend showing them in an invoice-style presentation next to
  * the code, which also gives the payer a way to check the code before scanning.
  */
-export function RequestScreen({ payee, onEditPayee }: RequestScreenProps) {
+export function RequestScreen({ payee, onEditPayee, onScan }: RequestScreenProps) {
   const [form, setForm] = useState<RequestForm>(EMPTY_FORM);
   const { width } = useWindowDimensions();
 
@@ -172,6 +173,16 @@ export function RequestScreen({ payee, onEditPayee }: RequestScreenProps) {
           </View>
         )
       ) : null}
+
+      <View style={styles.payAction}>
+        <Pressable onPress={onScan} accessibilityRole="button" style={styles.secondary}>
+          <Text style={styles.secondaryLabel}>Scan or paste a request</Text>
+        </Pressable>
+        <Text style={styles.hint}>
+          For paying someone: reads their code or shared link and shows what it says before
+          anything else happens.
+        </Text>
+      </View>
     </ScrollView>
   );
 }
@@ -368,6 +379,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#ffffff",
+  },
+  payAction: {
+    borderTopWidth: 1,
+    borderTopColor: "#e5e5ea",
+    paddingTop: 20,
+    gap: 8,
+  },
+  secondary: {
+    borderWidth: 1,
+    borderColor: "#1b64c8",
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  secondaryLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1b64c8",
   },
   row: {
     flexDirection: "row",
