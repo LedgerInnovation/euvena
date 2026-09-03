@@ -1,6 +1,6 @@
 {
   "name": "@euvena/qr",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Encode and decode European payment QR codes: EPC069-12 (EPC QR / GiroCode) and EPC024-22 (MSCT QR, basis of EN 18184)",
   "keywords": [
     "sepa",

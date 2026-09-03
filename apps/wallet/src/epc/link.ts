@@ -24,13 +24,6 @@ import { summarizeRequest } from "./request";
 export const REQUEST_LINK_SCHEME = "euvena";
 
 /**
- * Schemes the parser accepts beside the current one. Links built before the
- * project was renamed carry `eupi://` and remain valid: a link that leaves the
- * device has to come back as the same request, however long it travelled.
- */
-export const LEGACY_REQUEST_LINK_SCHEMES: readonly string[] = ["eupi"];
-
-/**
  * The word after the scheme, naming what a link carries. It sits where a web
  * address keeps its host, so URL parsers report it as one; it names no server.
  */
@@ -44,6 +37,17 @@ export type ParsedRequestLink =
   | { ok: false; reason: string };
 
 const NOT_A_REQUEST_LINK = `not a ${REQUEST_LINK_SCHEME}://${REQUEST_LINK_ACTION} link`;
+
+/**
+ * Scheme the wallet emitted before it was renamed to Euvena, retired on
+ * purpose so exactly one scheme is registered with the operating system and
+ * accepted here. A retired link is still recognised, but only to say what
+ * happened and what to do: its payload is never decoded.
+ */
+const RETIRED_LINK_SCHEME = "eupi";
+
+const RETIRED_LINK_NOTICE =
+  "this link was shared before the app was renamed to Euvena; ask for a fresh link or code";
 
 /**
  * Wraps an EPC069-12 payload into the link form of the same request.
@@ -79,7 +83,8 @@ export function parseRequestLink(link: string): ParsedRequestLink {
   // lowercase, and parsers pass this part of a custom-scheme link through as
   // written.
   const scheme = trimmed.slice(0, schemeEnd).toLowerCase();
-  if (scheme !== REQUEST_LINK_SCHEME && !LEGACY_REQUEST_LINK_SCHEMES.includes(scheme)) {
+  if (scheme === RETIRED_LINK_SCHEME) return { ok: false, reason: RETIRED_LINK_NOTICE };
+  if (scheme !== REQUEST_LINK_SCHEME) {
     return { ok: false, reason: NOT_A_REQUEST_LINK };
   }
 
