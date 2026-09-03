@@ -39,6 +39,17 @@ export type ParsedRequestLink =
 const NOT_A_REQUEST_LINK = `not a ${REQUEST_LINK_SCHEME}://${REQUEST_LINK_ACTION} link`;
 
 /**
+ * Scheme the wallet emitted before it was renamed to Euvena, retired on
+ * purpose so exactly one scheme is registered with the operating system and
+ * accepted here. A retired link is still recognised, but only to say what
+ * happened and what to do: its payload is never decoded.
+ */
+const RETIRED_LINK_SCHEME = "eupi";
+
+const RETIRED_LINK_NOTICE =
+  "this link was shared before the app was renamed to Euvena; ask for a fresh link or code";
+
+/**
  * Wraps an EPC069-12 payload into the link form of the same request.
  *
  * On top of percent encoding, the characters it leaves bare that message apps
@@ -71,7 +82,9 @@ export function parseRequestLink(link: string): ParsedRequestLink {
   // lowercase it. The word after it is compared exactly: the wallet only emits
   // lowercase, and parsers pass this part of a custom-scheme link through as
   // written.
-  if (trimmed.slice(0, schemeEnd).toLowerCase() !== REQUEST_LINK_SCHEME) {
+  const scheme = trimmed.slice(0, schemeEnd).toLowerCase();
+  if (scheme === RETIRED_LINK_SCHEME) return { ok: false, reason: RETIRED_LINK_NOTICE };
+  if (scheme !== REQUEST_LINK_SCHEME) {
     return { ok: false, reason: NOT_A_REQUEST_LINK };
   }
 

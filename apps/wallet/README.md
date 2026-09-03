@@ -60,9 +60,11 @@ wallet never emits an unescaped one and a remittance line may legitimately conta
 that message apps like to split off the end of a link is kept inside escapes, so a link that does
 get clipped reads as damaged instead of decoding to an altered request.
 
-`euvena` is the app's only URI scheme; links made under the pre-rename scheme are not
-accepted. Handling an incoming link is part of the scan and review flow and is not wired
-up yet.
+`euvena` is the app's only URI scheme. This is a deliberate breaking migration: links shared
+under the pre-rename `eupi` scheme are refused, so that exactly one scheme is registered with
+the operating system and accepted by the parser. A refused pre-rename link gets a message
+saying to ask for a fresh link or code, and its payload is never decoded. Handling an
+incoming link is part of the scan and review flow and is not wired up yet.
 
 ## Running it
 
