@@ -1,12 +1,12 @@
 {
-  "name": "@eupi/wallet",
+  "name": "@euvena/wallet",
   "version": "0.0.0",
   "private": true,
   "description": "Reference wallet: render and scan European payment QR codes, then hand off to the payer's own banking app",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LedgerInnovation/eupi.git",
+    "url": "git+https://github.com/LedgerInnovation/euvena.git",
     "directory": "apps/wallet"
   },
   "main": "index.ts",
@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@eupi/qr": "workspace:^",
+    "@euvena/qr": "workspace:^",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.12",
     "expo-camera": "~57.0.4",

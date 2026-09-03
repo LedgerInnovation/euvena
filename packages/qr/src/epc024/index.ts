@@ -20,7 +20,7 @@
  * the query parameter NAMES to the payload issuer: "the payload is at the
  * discretion of the payload issuer [...] the only constraint is that the
  * parameters have to be structured so that the URL in its entirety is a valid
- * URL". The parameter names used here are therefore the EUPI profile v1, an
+ * URL". The parameter names used here are therefore the Euvena profile v1, an
  * open naming proposal documented in the README; pass a custom `keys` mapping
  * to interoperate with issuers that chose different names.
  */
@@ -35,7 +35,7 @@ export type MsctContext = "m" | "e" | "i" | "p" | "w";
 /** Type of payment instrument: SEPA Credit Transfer or SEPA Instant Credit Transfer. */
 export type MsctInstrument = "SCT" | "INST";
 
-/** EUPI profile v1 query parameter names for the EPC024-22 payload fields. */
+/** Euvena profile v1 query parameter names for the EPC024-22 payload fields. */
 export const DEFAULT_KEYS = {
   issuer: "iss",
   token: "tok",
@@ -87,7 +87,7 @@ interface CommonEncodeOptions {
   issuer: string;
   /** QR specification version, defaults to 1. */
   version?: number;
-  /** Override the EUPI profile v1 parameter names. */
+  /** Override the Euvena profile v1 parameter names. */
   keys?: Partial<MsctKeys>;
 }
 
@@ -447,7 +447,7 @@ interface DecodedTransaction {
 export interface DecodeMsctOptions {
   /** Whether the code was presented by the payee (default) or the payer. */
   presenter?: "payee" | "payer";
-  /** Override the EUPI profile v1 parameter names. */
+  /** Override the Euvena profile v1 parameter names. */
   keys?: Partial<MsctKeys>;
   /** In strict mode (default) validation issues throw; lenient returns issues. */
   strict?: boolean;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EPC069_MAX_BYTES, encodeEpcQr } from "@eupi/qr";
+import { EPC069_MAX_BYTES, encodeEpcQr } from "@euvena/qr";
 
 import { EPC069_MAX_VERSION, toQrSymbol, toSvgPath, type QrSymbol } from "../src/qr/symbol";
 

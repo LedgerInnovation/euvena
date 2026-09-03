@@ -9,7 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { EPC069_MAX_BYTES, byteLength, type EpcQrData } from "@eupi/qr";
+import { EPC069_MAX_BYTES, byteLength, type EpcQrData } from "@euvena/qr";
 
 import { buildShareMessage } from "../epc/link";
 import {

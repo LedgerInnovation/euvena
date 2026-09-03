@@ -1,7 +1,7 @@
-# @eupi/wallet
+# @euvena/wallet
 
 Reference wallet for European payment QR codes. It renders and scans codes with
-[`@eupi/qr`](../../packages/qr), then hands the result to the payer's own banking app to
+[`@euvena/qr`](../../packages/qr), then hands the result to the payer's own banking app to
 authorise the transfer.
 
 The app never holds or routes funds and never submits an order to a bank interface. There are
@@ -44,7 +44,7 @@ destination.
 The link is:
 
 ```
-eupi://request?epc=<percent-encoded EPC069-12 payload>
+euvena://request?epc=<percent-encoded EPC069-12 payload>
 ```
 
 It carries the payload the code carries, not a second encoding of the same fields. There is one
@@ -60,7 +60,8 @@ wallet never emits an unescaped one and a remittance line may legitimately conta
 that message apps like to split off the end of a link is kept inside escapes, so a link that does
 get clipped reads as damaged instead of decoding to an altered request.
 
-`eupi` is registered as the app's URI scheme. Handling an incoming link is part of the scan and
+`euvena` is registered as the app's URI scheme, with `eupi` kept as a legacy alias so links
+shared before the rename keep opening. Handling an incoming link is part of the scan and
 review flow and is not wired up yet.
 
 ## Running it
@@ -69,23 +70,23 @@ From the repository root:
 
 ```sh
 pnpm install
-pnpm --filter @eupi/qr build
-pnpm --filter @eupi/wallet start
+pnpm --filter @euvena/qr build
+pnpm --filter @euvena/wallet start
 ```
 
 Then open the project in [Expo Go](https://expo.dev/go) on a physical device, which needs no
 Android Studio or Xcode install. The emulator paths are `a` for Android, which requires Android
 Studio, and `i` for the iOS simulator, which requires Xcode on macOS.
 
-`@eupi/qr` has to be built before the app can resolve it, which the second command does.
+`@euvena/qr` has to be built before the app can resolve it, which the second command does.
 
 ## Checks
 
 ```sh
-pnpm --filter @eupi/wallet lint
-pnpm --filter @eupi/wallet typecheck
-pnpm --filter @eupi/wallet test
-pnpm --filter @eupi/wallet build   # bundles the JS, no native toolchain required
+pnpm --filter @euvena/wallet lint
+pnpm --filter @euvena/wallet typecheck
+pnpm --filter @euvena/wallet test
+pnpm --filter @euvena/wallet build   # bundles the JS, no native toolchain required
 ```
 
 ## Layout

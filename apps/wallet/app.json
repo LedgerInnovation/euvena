@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "EUPI Wallet",
-    "slug": "eupi-wallet",
+    "name": "Euvena",
+    "slug": "euvena",
     "version": "0.0.0",
-    "scheme": "eupi",
+    "scheme": ["euvena", "eupi"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "eu.eupi.wallet"
+      "bundleIdentifier": "com.ledgerinnovation.euvena"
     },
     "android": {
-      "package": "eu.eupi.wallet",
+      "package": "com.ledgerinnovation.euvena",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

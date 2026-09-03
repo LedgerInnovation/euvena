@@ -1,5 +1,5 @@
 {
-  "name": "eupi-monorepo",
+  "name": "euvena-monorepo",
   "private": true,
   "packageManager": "pnpm@10.26.1",
   "pnpm": {

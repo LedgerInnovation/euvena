@@ -1,4 +1,4 @@
-# @eupi/qr
+# @euvena/qr
 
 Encode and decode European payment QR codes in TypeScript, with zero runtime dependencies.
 
@@ -16,7 +16,7 @@ This library produces and parses QR *payloads*. Render them with any QR library
 
 ```ts
 import QRCode from "qrcode";
-import { encodeEpcQr } from "@eupi/qr";
+import { encodeEpcQr } from "@euvena/qr";
 
 const payload = encodeEpcQr({
   name: "Franz Mustermann",
@@ -30,7 +30,7 @@ await QRCode.toDataURL(payload, { errorCorrectionLevel: "M" });
 ## EPC069-12
 
 ```ts
-import { encodeEpcQr, decodeEpcQr } from "@eupi/qr";
+import { encodeEpcQr, decodeEpcQr } from "@euvena/qr";
 
 const payload = encodeEpcQr({
   name: "Red Cross of Belgium",
@@ -65,7 +65,7 @@ where `type` is the payment context: `m` (POI), `e` (e-commerce), `i` (invoice),
 (token, proxy, all data in clear) plus a payer-presented token profile:
 
 ```ts
-import { encodeMsctPayeeClear, decodeMsctQr } from "@eupi/qr";
+import { encodeMsctPayeeClear, decodeMsctQr } from "@euvena/qr";
 
 const url = encodeMsctPayeeClear({
   domain: "qr.example.org", // your MSCT framework or scheme domain
@@ -89,7 +89,7 @@ if (data.kind === "payee-clear") {
 
 EPC024-22 standardises the URL structure and the payload *content*, but explicitly
 leaves the query parameter *names* to the payload issuer. The names used by default
-here (`iss`, `tok`, `prx`, `nm`, `iban`, `ins`, `cur`, `amt`, ...) are the **EUPI
+here (`iss`, `tok`, `prx`, `nm`, `iban`, `ins`, `cur`, `amt`, ...) are the **Euvena
 profile v1**, an open naming proposal. Every encode and decode function accepts a
 `keys` mapping to interoperate with issuers that made different choices, and
 `decodeMsctQr` always returns the raw `URLSearchParams`.

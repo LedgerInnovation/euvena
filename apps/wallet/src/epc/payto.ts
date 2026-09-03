@@ -23,7 +23,7 @@
  * code likewise has no generic option and stays visible in the review only.
  */
 
-import { type EpcQrData } from "@eupi/qr";
+import { type EpcQrData } from "@euvena/qr";
 
 export function buildPaytoUri(data: EpcQrData): string {
   const path =

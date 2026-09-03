@@ -1,23 +1,25 @@
-# EUPI
+# Euvena
 
-**The European Universal Payments Interface: open-source building blocks for instant
-payments in Europe.**
+**Open-source building blocks for instant payments in Europe.**
 
 Europe has world-class payment rails: since October 2025 every eurozone bank must send and
 receive SEPA Instant Credit Transfers 24/7 in under 10 seconds, at no premium over a regular
 transfer. The standards on top of the rails are open too: QR codes, payee verification,
 request-to-pay. What is missing is open-source software that implements them.
 
-EUPI fills that gap: a set of independently usable, Apache-2.0 licensed libraries and
+Euvena fills that gap: a set of independently usable, Apache-2.0 licensed libraries and
 reference services for building payment experiences on SEPA, inspired by what UPI did for
 India and Pix for Brazil, but as an open commons rather than a closed scheme.
+
+Euvena was previously named EUPI. Releases up to September 2026 were published on npm as
+`@eupi/qr` and `@eupi/taler`; the `@euvena` scope succeeds them.
 
 ## Packages
 
 | Package | Status | Description |
 |---|---|---|
-| [`@eupi/qr`](packages/qr) | alpha | Encode and decode European payment QR codes: EPC069-12 (the "EPC QR" / GiroCode scanned by many European banking apps today) and EPC024-22 (the MSCT QR standard behind EN 18184:2025, covering merchant-presented and payer-presented codes for instant payments) |
-| [`@eupi/taler`](packages/taler) | alpha | Top up GNU Taler reserves with standard EPC QR codes: any European banking app becomes a Taler on-ramp, no payer-side software needed |
+| [`@euvena/qr`](packages/qr) | alpha | Encode and decode European payment QR codes: EPC069-12 (the "EPC QR" / GiroCode scanned by many European banking apps today) and EPC024-22 (the MSCT QR standard behind EN 18184:2025, covering merchant-presented and payer-presented codes for instant payments) |
+| [`@euvena/taler`](packages/taler) | alpha | Top up GNU Taler reserves with standard EPC QR codes: any European banking app becomes a Taler on-ramp, no payer-side software needed |
 
 Planned: Verification of Payee client (EPC VoP scheme), SEPA Request-to-Pay (EPC133-22),
 alias directory reference implementation, settlement connectors, reference mobile wallet.
