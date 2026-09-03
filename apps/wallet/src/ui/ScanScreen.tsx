@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
-import { type EpcQrData } from "@eupi/qr";
+import { type EpcQrData } from "@euvena/qr";
 
 import { buildPaytoUri, handoffFields, type HandoffField } from "../epc/payto";
 import { summarizeRequest } from "../epc/request";
@@ -117,7 +117,7 @@ function PasteEntry({ onRead }: { onRead: (text: string) => void }) {
         style={[styles.input, styles.multiline]}
         value={pasted}
         onChangeText={setPasted}
-        placeholder="A shared eupi://request link or the text of a code"
+        placeholder="A shared euvena://request link or the text of a code"
         autoCapitalize="none"
         autoCorrect={false}
         multiline

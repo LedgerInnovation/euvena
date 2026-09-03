@@ -1,5 +1,5 @@
 {
-  "name": "@eupi/qr",
+  "name": "@euvena/qr",
   "version": "0.1.2",
   "description": "Encode and decode European payment QR codes: EPC069-12 (EPC QR / GiroCode) and EPC024-22 (MSCT QR, basis of EN 18184)",
   "keywords": [
@@ -18,7 +18,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LedgerInnovation/eupi.git",
+    "url": "git+https://github.com/LedgerInnovation/euvena.git",
     "directory": "packages/qr"
   },
   "type": "module",

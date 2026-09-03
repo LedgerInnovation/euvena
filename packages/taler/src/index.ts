@@ -14,7 +14,7 @@
  * reserve, with no Taler-specific software on the payer's side.
  */
 
-import { EpcQrError, decodeEpcQr, encodeEpcQr } from "@eupi/qr";
+import { EpcQrError, decodeEpcQr, encodeEpcQr } from "@euvena/qr";
 
 /**
  * Taler encodes binary data in Crockford base32 using the alphabet
@@ -78,7 +78,7 @@ export interface TalerTopupOptions {
  * QR library at error correction level M.
  *
  * @throws TalerTopupError on a malformed reserve public key; EpcQrError on
- *         invalid bank data (propagated from @eupi/qr).
+ *         invalid bank data (propagated from @euvena/qr).
  */
 export function encodeTalerTopupQr(options: TalerTopupOptions): string {
   const reservePub = options.reservePub.toUpperCase();

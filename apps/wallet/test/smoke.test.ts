@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { decodeEpcQr, encodeEpcQr } from "@eupi/qr";
+import { decodeEpcQr, encodeEpcQr } from "@euvena/qr";
 
 // The scaffold has no payment features yet. This asserts only that the app
-// resolves the workspace copy of @eupi/qr and can round-trip through it, so a
+// resolves the workspace copy of @euvena/qr and can round-trip through it, so a
 // broken workspace link fails here rather than at runtime on a device.
-describe("@eupi/qr is wired into the app", () => {
+describe("@euvena/qr is wired into the app", () => {
   it("round-trips an EPC069-12 payload", () => {
     const payload = encodeEpcQr({
       name: "Wikimedia Foerdergesellschaft",

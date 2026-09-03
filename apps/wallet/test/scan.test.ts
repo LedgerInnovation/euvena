@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EPC069_MAX_BYTES, byteLength } from "@eupi/qr";
+import { EPC069_MAX_BYTES, byteLength } from "@euvena/qr";
 
 import { parseRequestLink, buildRequestLink } from "../src/epc/link";
 import {

@@ -1,5 +1,5 @@
 {
-  "name": "@eupi/taler",
+  "name": "@euvena/taler",
   "version": "0.1.2",
   "description": "Top up GNU Taler reserves with standard European payment QR codes (EPC069-12 / EN 18184)",
   "keywords": [
@@ -17,7 +17,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LedgerInnovation/eupi.git",
+    "url": "git+https://github.com/LedgerInnovation/euvena.git",
     "directory": "packages/taler"
   },
   "type": "module",
@@ -48,7 +48,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@eupi/qr": "workspace:^0.1.1"
+    "@euvena/qr": "workspace:^0.1.1"
   },
   "devDependencies": {
     "tsup": "^8.5.1",

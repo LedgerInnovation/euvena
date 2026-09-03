@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeEpcQr } from "@eupi/qr";
+import { encodeEpcQr } from "@euvena/qr";
 
 import {
   REQUEST_LINK_ACTION,
@@ -142,13 +142,29 @@ describe("parseRequestLink", () => {
   });
 
   it("accepts a scheme in any case and ignores parameters it does not know", () => {
-    const link = `EUPI://${REQUEST_LINK_ACTION}?ref=chat&${REQUEST_LINK_PARAM}=${encodeURIComponent(payload)}`;
+    const link = `EUVENA://${REQUEST_LINK_ACTION}?ref=chat&${REQUEST_LINK_PARAM}=${encodeURIComponent(payload)}`;
 
     const parsed = parseRequestLink(link);
 
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.payload).toBe(payload);
+  });
+
+  it("accepts the legacy eupi scheme from links shared before the rename", () => {
+    const link = `eupi://${REQUEST_LINK_ACTION}?${REQUEST_LINK_PARAM}=${encodeURIComponent(payload)}`;
+
+    const parsed = parseRequestLink(link);
+
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.payload).toBe(payload);
+  });
+
+  it("emits the current scheme, never the legacy one", () => {
+    // Pinned as a literal on purpose: the constant-based assertions elsewhere
+    // would keep passing if the emitted scheme regressed to the legacy one.
+    expect(buildRequestLink(payload).startsWith("euvena://request?")).toBe(true);
   });
 
   it("accepts a link with whitespace around it, as pasted", () => {

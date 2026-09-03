@@ -7,7 +7,7 @@ name: Release
 # package.json version.
 #
 # Uses npm trusted publishing (OIDC): each package has the GitHub Actions
-# trusted publisher configured on npmjs.com (repository LedgerInnovation/eupi,
+# trusted publisher configured on npmjs.com (repository LedgerInnovation/euvena,
 # workflow release.yml), so no npm token secret is needed and provenance
 # attestations are generated automatically. The very first publish of a new
 # package must be done manually from a maintainer machine.

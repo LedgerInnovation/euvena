@@ -1,4 +1,4 @@
-# @eupi/taler
+# @euvena/taler
 
 Top up GNU Taler reserves with standard European payment QR codes.
 
@@ -26,7 +26,7 @@ Taler wallet                    payer's own banking app            exchange bank
 ## Usage
 
 ```ts
-import { encodeTalerTopupQr, parseTalerTopupQr, findReservePub } from "@eupi/taler";
+import { encodeTalerTopupQr, parseTalerTopupQr, findReservePub } from "@euvena/taler";
 import QRCode from "qrcode";
 
 // Wallet or exchange side: build the QR for a withdrawal
@@ -46,7 +46,7 @@ const topup = parseTalerTopupQr(scannedText);
 const pub = findReservePub("Taler ABCDEFGH... withdrawal");
 ```
 
-Validation is inherited from [`@eupi/qr`](../qr) (IBAN check digits, amount range,
+Validation is inherited from [`@euvena/qr`](../qr) (IBAN check digits, amount range,
 payload limits) plus Taler reserve key checks (52-character Crockford base32 in
 Taler's alphabet: 0-9, A-Z without I, L, O, U). `findReservePub` tolerates
 surrounding text, since banks may decorate the subject line.

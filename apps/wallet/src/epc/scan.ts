@@ -12,7 +12,7 @@
  * and a scanned code is someone else's writing, so they are never shown.
  */
 
-import { EpcQrError, decodeEpcQr, type EpcQrData } from "@eupi/qr";
+import { EpcQrError, decodeEpcQr, type EpcQrData } from "@euvena/qr";
 
 import { parseRequestLink } from "./link";
 

@@ -3,7 +3,7 @@
  *
  * Everything here is plain TypeScript so it can be exercised without a React
  * Native runtime. The screen owns the form state; this module owns the mapping
- * onto `@eupi/qr` and the validation messages the screen shows.
+ * onto `@euvena/qr` and the validation messages the screen shows.
  */
 
 import {
@@ -13,7 +13,7 @@ import {
   type EpcQrData,
   type EpcQrIssue,
   encodeEpcQr,
-} from "@eupi/qr";
+} from "@euvena/qr";
 
 /**
  * EPC069-12 element 10 (structured creditor reference) and element 11

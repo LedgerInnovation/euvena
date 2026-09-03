@@ -13,7 +13,7 @@ importers:
 
   apps/wallet:
     dependencies:
-      '@eupi/qr':
+      '@euvena/qr':
         specifier: workspace:^
         version: link:../../packages/qr
       '@react-native-async-storage/async-storage':
@@ -77,7 +77,7 @@ importers:
 
   packages/taler:
     dependencies:
-      '@eupi/qr':
+      '@euvena/qr':
         specifier: workspace:^0.1.1
         version: link:../qr
     devDependencies:

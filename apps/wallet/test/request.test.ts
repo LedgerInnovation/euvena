@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeEpcQr } from "@eupi/qr";
+import { decodeEpcQr } from "@euvena/qr";
 
 import {
   EMPTY_FORM,
