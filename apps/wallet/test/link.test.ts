@@ -151,14 +151,12 @@ describe("parseRequestLink", () => {
     expect(parsed.payload).toBe(payload);
   });
 
-  it("accepts the legacy eupi scheme from links shared before the rename", () => {
+  it("rejects the retired eupi scheme", () => {
+    // Pre-rename links are dead on purpose: one accepted scheme keeps the
+    // parser's surface as small as possible.
     const link = `eupi://${REQUEST_LINK_ACTION}?${REQUEST_LINK_PARAM}=${encodeURIComponent(payload)}`;
 
-    const parsed = parseRequestLink(link);
-
-    expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
-    expect(parsed.payload).toBe(payload);
+    expect(parseRequestLink(link).ok).toBe(false);
   });
 
   it("emits the current scheme, never the legacy one", () => {

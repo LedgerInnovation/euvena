@@ -3,7 +3,7 @@
     "name": "Euvena",
     "slug": "euvena",
     "version": "0.0.0",
-    "scheme": ["euvena", "eupi"],
+    "scheme": "euvena",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

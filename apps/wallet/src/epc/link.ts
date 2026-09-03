@@ -24,13 +24,6 @@ import { summarizeRequest } from "./request";
 export const REQUEST_LINK_SCHEME = "euvena";
 
 /**
- * Schemes the parser accepts beside the current one. Links built before the
- * project was renamed carry `eupi://` and remain valid: a link that leaves the
- * device has to come back as the same request, however long it travelled.
- */
-export const LEGACY_REQUEST_LINK_SCHEMES: readonly string[] = ["eupi"];
-
-/**
  * The word after the scheme, naming what a link carries. It sits where a web
  * address keeps its host, so URL parsers report it as one; it names no server.
  */
@@ -78,8 +71,7 @@ export function parseRequestLink(link: string): ParsedRequestLink {
   // lowercase it. The word after it is compared exactly: the wallet only emits
   // lowercase, and parsers pass this part of a custom-scheme link through as
   // written.
-  const scheme = trimmed.slice(0, schemeEnd).toLowerCase();
-  if (scheme !== REQUEST_LINK_SCHEME && !LEGACY_REQUEST_LINK_SCHEMES.includes(scheme)) {
+  if (trimmed.slice(0, schemeEnd).toLowerCase() !== REQUEST_LINK_SCHEME) {
     return { ok: false, reason: NOT_A_REQUEST_LINK };
   }
 
