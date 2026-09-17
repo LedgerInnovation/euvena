@@ -39,6 +39,8 @@ const OWN_SCHEME_PREFIX = `${REQUEST_LINK_SCHEME}:`;
 /** How a payto URI begins, compared without case. */
 const PAYTO_PREFIX = `${PAYTO_SCHEME}://`;
 
+const PAYTO_TOO_LONG = "the payto link carries more text than a payment code can hold";
+
 /** What each codec element is called when a rejection names it. */
 const ELEMENT_LABELS: Record<string, string> = {
   serviceTag: "the service tag",
@@ -94,6 +96,11 @@ export function readPaymentRequest(input: string): ReadRequestResult {
 /**
  * Turns a payto URI into the EPC069-12 payload of the same request and reads
  * that payload back, so the review shows what an equivalent code carries.
+ *
+ * A link has no size limit of its own, so its name and text can each pass
+ * and still not fit the 331 bytes of a code together. That is the only way
+ * the encoder faults the payload as a whole here. The structure of the link
+ * is not what is wrong, so the case gets its own sentence.
  */
 function readPaytoRequest(uri: string): ReadRequestResult {
   const parsed = parsePaytoUri(uri);
@@ -103,6 +110,9 @@ function readPaytoRequest(uri: string): ReadRequestResult {
     return { ok: true, payload, data: decodeEpcQr(payload).data };
   } catch (error) {
     if (error instanceof EpcQrError) {
+      if (error.issues.some((issue) => issue.element === "payload")) {
+        return { ok: false, reason: PAYTO_TOO_LONG };
+      }
       return { ok: false, reason: describeRejection(error, "the payto link") };
     }
     throw error;

@@ -135,6 +135,10 @@ and BIC must be plain letters and digits. One trailing slash after the account i
 Taler exchanges publish their accounts that way. Other target types, userinfo, a port, a fragment or
 further path segments make the link fail.
 
+A link has no size limit, but a code holds 331 bytes. A name and a text that each pass and do not
+fit a code together make the link fail, with a message that says it carries more text than a code
+can hold.
+
 The app does not register `payto` with the operating system, so a tapped payto link does not
 open it. The handoff itself opens a payto URI, so a wallet registered for the scheme would be
 offered its own handoff.

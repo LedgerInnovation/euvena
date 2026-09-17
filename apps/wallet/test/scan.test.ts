@@ -163,6 +163,16 @@ describe("readOpenedLink reads the link the app was opened with", () => {
     expect(readOpenedLink(link.replace("euvena://", "exp://192.168.1.5:8081/--/"))).toBeNull();
   });
 
+  it("ignores a payto link, which is read from a scan or a paste only", () => {
+    // The handoff opens payto URIs. A wallet that also opened them would be
+    // offered its own handoff, so the scheme is never registered and a payto
+    // URL that reaches the app some other way is not shown.
+    const payto = "payto://iban/DE33100205000001194700?receiver-name=Alice&amount=EUR:5";
+    expect(readPaymentRequest(payto).ok).toBe(true);
+    expect(readOpenedLink(payto)).toBeNull();
+    expect(readOpenedLink(payto.replace("payto://", "PAYTO://"))).toBeNull();
+  });
+
   it("ignores a scheme that only begins with the wallet's", () => {
     expect(readOpenedLink(link.replace("euvena://", "euvenax://"))).toBeNull();
   });

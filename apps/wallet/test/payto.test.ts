@@ -376,6 +376,41 @@ describe("reading a payto link", () => {
     expect(reasonFor(`payto://iban/CH9300762011623852957?${NAME}`)).toContain("the BIC");
   });
 
+  it("says so when the values fit one by one but not together", () => {
+    // 70 and 140 characters are within the element limits, yet at three bytes
+    // each they overrun the 331 bytes of a code.
+    const name = encodeURIComponent("\u6771".repeat(70));
+    const message = encodeURIComponent("\u4EAC".repeat(140));
+
+    expect(reasonFor(`payto://iban/${IBAN}?receiver-name=${name}&message=${message}`)).toBe(
+      "the payto link carries more text than a payment code can hold",
+    );
+    // A failed element is still named, even when the size is over as well.
+    expect(
+      reasonFor(`payto://iban/DE33100205000001194799?receiver-name=${name}&message=${message}`),
+    ).toBe("the payto link is not a valid payment request: the IBAN failed the checks");
+  });
+
+  it("reads a name with characters beyond the basic plane", () => {
+    const name = "Caf\u00E9 \u{1F600} \u{20BB7}\u91CE";
+    const read = readPastedRequest(
+      `payto://iban/${IBAN}?receiver-name=${encodeURIComponent(name)}`,
+    );
+
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.data.name).toBe(name);
+  });
+
+  it("refuses half a surrogate pair, which no code can carry", () => {
+    expect(reasonFor(`payto://iban/${IBAN}?receiver-name=\uDB40`)).toBe(
+      "the payto link is not a valid payment request: the beneficiary name failed the checks",
+    );
+    expect(reasonFor(`payto://iban/${IBAN}?${NAME}&message=pay\uD800now`)).toBe(
+      "the payto link is not a valid payment request: the remittance text failed the checks",
+    );
+  });
+
   it("reads a very long link quickly", () => {
     const long = `payto://iban/${IBAN}?${NAME}&message=${"%0A".repeat(100_000)}x`;
 
