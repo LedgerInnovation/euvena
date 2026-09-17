@@ -8,7 +8,12 @@ import {
   type Payee,
   type RequestForm,
 } from "../src/epc/request";
-import { NOT_A_PAYMENT_INPUT, readPastedRequest, readPaymentRequest } from "../src/epc/scan";
+import {
+  NOT_A_PAYMENT_INPUT,
+  readOpenedLink,
+  readPastedRequest,
+  readPaymentRequest,
+} from "../src/epc/scan";
 
 const payee: Payee = {
   name: "Wikimedia Foerdergesellschaft",
@@ -124,6 +129,60 @@ describe("readPaymentRequest classifies input", () => {
 
   it("rejects empty input", () => {
     expect(readPaymentRequest("   ").ok).toBe(false);
+  });
+});
+
+describe("readOpenedLink reads the link the app was opened with", () => {
+  const request = requestFor({ amount: "10", remittanceKind: "text", remittance: "Invoice 7" });
+  const link = buildRequestLink(request.payload);
+
+  it("reviews a shared request link", () => {
+    const read = readOpenedLink(link);
+
+    expect(read).toEqual(parseRequestLink(link));
+    expect(read?.ok).toBe(true);
+    if (!read?.ok) return;
+    expect(read.data).toEqual(request.data);
+  });
+
+  it("reads the scheme without regard to case", () => {
+    const read = readOpenedLink(link.replace("euvena://", "EUVENA://"));
+
+    expect(read?.ok).toBe(true);
+  });
+
+  it("shows nothing when the app was launched without a URL", () => {
+    expect(readOpenedLink(null)).toBeNull();
+  });
+
+  it("ignores the URL a development host launches the app with", () => {
+    // Expo Go opens the project with an exp:// URL on every launch, and its
+    // own link form can carry a valid request. Neither is the wallet's link.
+    expect(readOpenedLink("exp://192.168.1.5:8081")).toBeNull();
+    expect(readOpenedLink(link.replace("euvena://", "exp://192.168.1.5:8081/--/"))).toBeNull();
+  });
+
+  it("ignores a scheme that only begins with the wallet's", () => {
+    expect(readOpenedLink(link.replace("euvena://", "euvenax://"))).toBeNull();
+  });
+
+  it("rejects a link in the wallet's scheme that is not a request, rather than ignoring it", () => {
+    const notARequest = { ok: false, reason: "not a euvena://request link" };
+
+    expect(readOpenedLink("euvena://settings")).toEqual(notARequest);
+    // Without the slashes the link is still the wallet's, so the link parser
+    // explains it rather than the paste classifier calling it unrecognised.
+    expect(readOpenedLink(link.replace("euvena://", "euvena:"))).toEqual(notARequest);
+  });
+
+  it("rejects a tampered request as a whole, without a partial reading", () => {
+    const tampered = buildRequestLink(
+      payloadOf(["BCD", "002", "1", "SCT", "", "Name", "DE33100205000001194799"]),
+    );
+
+    const read = readOpenedLink(tampered);
+
+    expect(read).toEqual({ ok: false, reason: "the link does not carry a valid payment request" });
   });
 });
 

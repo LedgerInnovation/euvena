@@ -9,6 +9,12 @@ import { summarizeRequest } from "../epc/request";
 import { readPastedRequest, readPaymentRequest, type ReadRequestResult } from "../epc/scan";
 
 interface ScanScreenProps {
+  /**
+   * A request that arrived before the screen opened, such as a link the app
+   * was opened with. Read once on mount: the caller remounts the screen with a
+   * new key for each new arrival.
+   */
+  initialResult: ReadRequestResult | null;
   onBack: () => void;
 }
 
@@ -20,10 +26,12 @@ interface ScanScreenProps {
  * the decoded payload in strict mode, and a payload that fails any check is
  * replaced by the rejection as a whole, never shown partially. The paste path
  * takes the same route as a scanned code, so the two cannot drift and the flow
- * stays exercisable where no camera exists.
+ * stays exercisable where no camera exists. A link the app was opened with
+ * lands on the same review and starts nothing by itself: the handoff waits
+ * for the payer.
  */
-export function ScanScreen({ onBack }: ScanScreenProps) {
-  const [result, setResult] = useState<ReadRequestResult | null>(null);
+export function ScanScreen({ initialResult, onBack }: ScanScreenProps) {
+  const [result, setResult] = useState<ReadRequestResult | null>(initialResult);
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
