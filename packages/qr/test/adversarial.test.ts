@@ -105,6 +105,27 @@ describe("EPC069 structural strictness", () => {
   });
 });
 
+describe("EPC069 decoding cost", () => {
+  // Input far beyond the size cap is rejected either way; what matters is that
+  // rejecting it stays quick, because a shared link or a paste can carry
+  // hundreds of kilobytes. A backtracking trim takes most of a minute here.
+  const run = "\r\n\n".repeat(70_000);
+
+  it("rejects a long run of separators followed by text without stalling", () => {
+    expect(() => decodeEpcQr(`BCD${run}x`)).toThrow(EpcQrError);
+  });
+
+  it("still trims a long trailing run before reading the elements", () => {
+    const { data, issues } = decodeEpcQr(
+      ["BCD", "002", "1", "SCT", "", "Alice", "BE72000000001616"].join("\n") + run,
+      { strict: false },
+    );
+    expect(data.name).toBe("Alice");
+    expect(data.iban).toBe("BE72000000001616");
+    expect(issues.map((issue) => issue.element)).toEqual(["payload"]);
+  });
+});
+
 describe("IBAN registry", () => {
   it("rejects unregistered country codes even with valid check digits", () => {
     expect(isValidIban("ZZ93111111111111111111")).toBe(false);
