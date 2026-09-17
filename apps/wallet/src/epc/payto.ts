@@ -23,7 +23,13 @@
  * code likewise has no generic option and stays visible in the review only.
  */
 
-import { type EpcQrData } from "@euvena/qr";
+import { isValidAmountString, type EncodeEpcQrOptions, type EpcQrData } from "@euvena/qr";
+
+/** URI scheme of RFC 8905 payment target URIs. */
+export const PAYTO_SCHEME = "payto";
+
+/** The only payment target type the wallet reads: a SEPA account by IBAN. */
+const IBAN_TARGET = "iban";
 
 export function buildPaytoUri(data: EpcQrData): string {
   const path =
@@ -73,4 +79,163 @@ export function handoffFields(data: EpcQrData): HandoffField[] {
   if (data.reference !== undefined) fields.push({ label: "Reference", value: data.reference });
   if (data.text !== undefined) fields.push({ label: "Text", value: data.text });
   return fields;
+}
+
+export type ParsedPaytoUri =
+  | { ok: true; request: EncodeEpcQrOptions }
+  | { ok: false; reason: string };
+
+const MALFORMED = "the payto link is malformed";
+const DAMAGED = "the payto link is damaged and cannot be read";
+
+/**
+ * Reads an RFC 8905 `payto://iban` URI into the fields of an EPC069-12
+ * request, which the caller encodes and decodes in strict mode like any other
+ * input. Only the URI's own structure is checked here; the codec judges the
+ * values.
+ *
+ * Every option maps onto an element the review shows or is refused, so what
+ * the payer reviews is everything the link asked for:
+ * - `receiver-name` is the beneficiary name, which EPC069-12 requires
+ * - `amount` must be in euro, at most once (RFC 8905 section 5); commas are
+ *   ignored as the RFC says, and digits past the cent must be zeros
+ * - `message` is the unstructured remittance text (section 7.3)
+ * - `instruction` is the end-to-end identifier, which neither a code nor the
+ *   handoff can carry. Section 6 says to refuse rather than lose it
+ * - `sender-name` names the payer, who is the one reading, so it is ignored.
+ *   So are `receiver-postal-code` and `receiver-town`, the creditor address
+ *   the GNU Taler wallets add, which neither a code nor a transfer form takes
+ *   and which does not change where the money goes
+ * - anything else is refused, as is any option given twice. That includes
+ *   `ch-qrr` (a Swiss structured reference) and a `bic` option that would
+ *   compete with the path
+ *
+ * Option names are compared without case because RFC 5234 string literals are
+ * case-insensitive: "AMOUNT" next to "amount" is a repeat, not an unknown
+ * option another reader might honour. A raw "+" in a value is read as a space,
+ * as the GNU Taler wallet reads it and as the PHP and Python query builders
+ * that invoicing backends use write one; a literal plus arrives as "%2B",
+ * which is what buildPaytoUri emits. One trailing slash after the account is
+ * accepted, since Taler exchanges publish their accounts that way. Reasons are
+ * fixed sentences that never repeat the input.
+ */
+export function parsePaytoUri(uri: string): ParsedPaytoUri {
+  const prefix = `${PAYTO_SCHEME}://`;
+  if (uri.slice(0, prefix.length).toLowerCase() !== prefix) {
+    return { ok: false, reason: "not a payto link" };
+  }
+  // RFC 8905 has no fragment, and a stray one must not ride into a value.
+  if (uri.includes("#")) return { ok: false, reason: MALFORMED };
+
+  const rest = uri.slice(prefix.length);
+  const queryStart = rest.indexOf("?");
+  const hierarchy = queryStart === -1 ? rest : rest.slice(0, queryStart);
+  const query = queryStart === -1 ? undefined : rest.slice(queryStart + 1);
+
+  // The authority is the target type alone. Userinfo or a port leaves
+  // something other than "iban" here and is refused with it.
+  const [target, ...segments] = hierarchy.split("/");
+  if (target === undefined || target.toLowerCase() !== IBAN_TARGET) {
+    return { ok: false, reason: "the payto link is for an account type other than an IBAN" };
+  }
+  if (segments.length > 1 && segments[segments.length - 1] === "") segments.pop();
+  // Section 7.3: the path is the IBAN, or the BIC followed by the IBAN.
+  if (segments.length < 1 || segments.length > 2) {
+    return { ok: false, reason: MALFORMED };
+  }
+
+  const options = new Map<string, string>();
+  if (query !== undefined) {
+    for (const pair of query.split("&")) {
+      const separator = pair.indexOf("=");
+      if (separator < 1) return { ok: false, reason: MALFORMED };
+      const name = pair.slice(0, separator).toLowerCase();
+      if (options.has(name)) return { ok: false, reason: "the payto link repeats an option" };
+      options.set(name, pair.slice(separator + 1));
+    }
+  }
+
+  let decoded: { segments: string[]; options: Map<string, string> };
+  try {
+    decoded = {
+      segments: segments.map((segment) => decodeURIComponent(segment)),
+      options: new Map(
+        [...options].map(([name, value]) => [name, decodeURIComponent(value.replace(/\+/g, " "))]),
+      ),
+    };
+  } catch {
+    // decodeURIComponent throws a URIError on a truncated or malformed escape.
+    return { ok: false, reason: DAMAGED };
+  }
+
+  // Account identifiers are plain letters and digits in their electronic form.
+  // The encoder would quietly strip whitespace, including an escaped line
+  // break, so anything else is refused here instead.
+  if (!decoded.segments.every((segment) => /^[A-Za-z0-9]+$/.test(segment))) {
+    return { ok: false, reason: MALFORMED };
+  }
+
+  for (const name of decoded.options.keys()) {
+    if (name === "instruction") {
+      return {
+        ok: false,
+        reason: "the payto link carries an end-to-end identifier, which this wallet cannot pass on",
+      };
+    }
+    if (!READ_OPTIONS.has(name) && !IGNORED_OPTIONS.has(name)) {
+      return { ok: false, reason: "the payto link carries an option this wallet does not know" };
+    }
+  }
+
+  const name = decoded.options.get("receiver-name") ?? "";
+  if (name === "") return { ok: false, reason: "the payto link names no beneficiary" };
+
+  const bic = decoded.segments.length === 2 ? decoded.segments[0] : undefined;
+  const iban = decoded.segments[decoded.segments.length - 1] ?? "";
+  const request: EncodeEpcQrOptions = { name, iban };
+  if (bic !== undefined) request.bic = bic;
+
+  const amount = decoded.options.get("amount");
+  if (amount !== undefined) {
+    const parsed = readPaytoAmount(amount);
+    if (!parsed.ok) return parsed;
+    request.amount = parsed.value;
+  }
+
+  const message = decoded.options.get("message") ?? "";
+  if (message !== "") request.text = message;
+
+  return { ok: true, request };
+}
+
+const READ_OPTIONS = new Set(["amount", "receiver-name", "message"]);
+const IGNORED_OPTIONS = new Set(["sender-name", "receiver-postal-code", "receiver-town"]);
+
+/**
+ * `currency ":" unit [ "." fraction ]` (RFC 8905 section 5) as the numeric
+ * string EPC069-12 carries after "EUR". Commas are ignored as the RFC says.
+ * The fraction may run to eight digits, but a SEPA amount stops at the cent,
+ * so anything past it must be zeros: rounding would change what is paid.
+ */
+function readPaytoAmount(value: string): { ok: true; value: string } | { ok: false; reason: string } {
+  const unusable = { ok: false, reason: "the payto link carries an amount this wallet cannot use" } as const;
+
+  const separator = value.indexOf(":");
+  if (separator === -1) return unusable;
+  if (value.slice(0, separator).toUpperCase() !== "EUR") {
+    return { ok: false, reason: "the payto link asks for a currency other than euro" };
+  }
+
+  const number = value.slice(separator + 1);
+  const point = number.indexOf(".");
+  const unit = (point === -1 ? number : number.slice(0, point)).replace(/,/g, "");
+  const fraction = point === -1 ? undefined : number.slice(point + 1).replace(/,/g, "");
+  if (!/^\d+$/.test(unit)) return unusable;
+  if (fraction !== undefined && !/^\d{1,8}$/.test(fraction)) return unusable;
+  if (fraction !== undefined && !/^0*$/.test(fraction.slice(2))) return unusable;
+
+  const cents = fraction?.slice(0, 2);
+  const canonical = `${unit.replace(/^0+(?=\d)/, "")}${cents === undefined ? "" : `.${cents}`}`;
+  if (!isValidAmountString(canonical)) return unusable;
+  return { ok: true, value: canonical };
 }

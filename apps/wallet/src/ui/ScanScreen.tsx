@@ -188,7 +188,7 @@ function PasteEntry({ onRead }: { onRead: (text: string) => void }) {
         style={[styles.input, styles.multiline]}
         value={pasted}
         onChangeText={setPasted}
-        placeholder="A shared euvena://request link or the text of a code"
+        placeholder="A euvena:// or payto:// link, or the text of a code"
         autoCapitalize="none"
         autoCorrect={false}
         multiline

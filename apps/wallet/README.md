@@ -11,8 +11,9 @@ no accounts and no backend.
 
 The request flow is implemented. Enter an amount and remittance information to get an EPC069-12
 code with the decoded values printed beside it, and share that request through the share sheet of
-the operating system. On the paying side the app scans a code, reads a pasted request or opens a
-shared link, shows what the request says and then hands it to a banking app. EN 18184 codes are
+the operating system. On the paying side the app scans a code, reads a pasted request (including a
+payto link) or opens a shared link, shows what the request says and then hands it to a banking
+app. EN 18184 codes are
 not supported yet; see the checklist on the tracking issue.
 
 ## The request flow
@@ -101,6 +102,41 @@ adb shell "am start -a android.intent.action.VIEW -d 'euvena://request?epc=BCD%0
 ```
 
 The paste entry reads the same links through the same parser and works in Expo Go.
+
+## Reading a payto link
+
+A scanned code or pasted text may also hold an [RFC 8905](https://www.rfc-editor.org/rfc/rfc8905)
+payto URI for a SEPA account, the same form the handoff emits:
+
+```
+payto://iban/[BIC/]IBAN?receiver-name=...&amount=EUR:12.30&message=...
+```
+
+The link is turned into the EPC069-12 payload of the same request and read back through the
+decoder in strict mode, so the review shows exactly what an equivalent code would carry. Every
+option either lands in an element the review shows or makes the link fail:
+
+| Option | Handling |
+| --- | --- |
+| `receiver-name` | Beneficiary name, required because a code requires one |
+| `amount` | Euro only and at most once. Commas are ignored as the RFC says. Digits past the cent must be zeros, since rounding would change what is paid |
+| `message` | Unstructured remittance text (RFC 8905 section 7.3), never the structured reference |
+| `instruction` | Refused. It is the end-to-end identifier, which neither a code nor the handoff can carry. The RFC says to refuse rather than lose it |
+| `sender-name` | Ignored, since it names the payer |
+| `receiver-postal-code`, `receiver-town` | Ignored. The GNU Taler wallets add the creditor address, which neither a code nor a transfer form takes |
+| anything else | Refused, as is any option given twice. That includes `ch-qrr` (a Swiss structured reference) and a `bic` option that would compete with the path |
+
+The scheme, the target type and option names are compared without case, so `AMOUNT` next to
+`amount` is a repeat rather than an option another reader might honour. A raw `+` in a value is
+read as a space, as the GNU Taler wallet reads it and as common query builders write one. A
+literal plus arrives as `%2B`, which is what the handoff emits. The IBAN and BIC must be plain
+letters and digits. One trailing slash after the account is accepted, since Taler exchanges
+publish their accounts that way. Other target types, userinfo, a port, a fragment or further
+path segments make the link fail.
+
+The app does not register `payto` with the operating system, so a tapped payto link does not
+open it. The handoff itself opens a payto URI, so a wallet registered for the scheme would be
+offered its own handoff.
 
 ## Running it
 

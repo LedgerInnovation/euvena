@@ -2,19 +2,21 @@
  * Reads payer-side input, a scanned QR code, pasted text or a link the app was
  * opened with, back into a payment request.
  *
- * Two shapes arrive here: the EPC069-12 payload itself, which is what a
- * displayed or printed code carries, and the shared-link form from ./link.
- * Both end at the same codec in strict mode, so nothing scanned, pasted or
- * opened can present values that a code could not carry.
+ * Three shapes arrive here: the EPC069-12 payload itself, which is what a
+ * displayed or printed code carries, the shared-link form from ./link and an
+ * RFC 8905 payto URI from ./payto. All of them end at the same codec in strict
+ * mode, so nothing scanned, pasted or opened can present values that a code
+ * could not carry.
  *
  * Rejection reasons are fixed sentences that name the element that failed and
  * nothing else. The codec's own messages can quote the value they rejected,
  * and a scanned code is someone else's writing, so they are never shown.
  */
 
-import { EpcQrError, decodeEpcQr, type EpcQrData } from "@euvena/qr";
+import { EpcQrError, decodeEpcQr, encodeEpcQr, type EpcQrData } from "@euvena/qr";
 
 import { REQUEST_LINK_SCHEME, parseRequestLink } from "./link";
+import { PAYTO_SCHEME, parsePaytoUri } from "./payto";
 
 export type ReadRequestResult =
   | { ok: true; payload: string; data: EpcQrData }
@@ -33,6 +35,9 @@ const SCHEME_SHAPED = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
 
 /** How a URL in the wallet's own scheme begins. */
 const OWN_SCHEME_PREFIX = `${REQUEST_LINK_SCHEME}:`;
+
+/** How a payto URI begins, compared without case. */
+const PAYTO_PREFIX = `${PAYTO_SCHEME}://`;
 
 /** What each codec element is called when a rejection names it. */
 const ELEMENT_LABELS: Record<string, string> = {
@@ -69,16 +74,39 @@ export function readPaymentRequest(input: string): ReadRequestResult {
     try {
       return { ok: true, payload: input, data: decodeEpcQr(input).data };
     } catch (error) {
-      if (error instanceof EpcQrError) return { ok: false, reason: describeRejection(error) };
+      if (error instanceof EpcQrError) {
+        return { ok: false, reason: describeRejection(error, "the code") };
+      }
       throw error;
     }
   }
 
   const trimmed = input.trim();
   if (trimmed === "") return { ok: false, reason: "there is nothing to read" };
+  if (trimmed.slice(0, PAYTO_PREFIX.length).toLowerCase() === PAYTO_PREFIX) {
+    return readPaytoRequest(trimmed);
+  }
   if (SCHEME_SHAPED.test(trimmed)) return parseRequestLink(trimmed);
 
   return { ok: false, reason: NOT_A_PAYMENT_INPUT };
+}
+
+/**
+ * Turns a payto URI into the EPC069-12 payload of the same request and reads
+ * that payload back, so the review shows what an equivalent code carries.
+ */
+function readPaytoRequest(uri: string): ReadRequestResult {
+  const parsed = parsePaytoUri(uri);
+  if (!parsed.ok) return parsed;
+  try {
+    const payload = encodeEpcQr(parsed.request);
+    return { ok: true, payload, data: decodeEpcQr(payload).data };
+  } catch (error) {
+    if (error instanceof EpcQrError) {
+      return { ok: false, reason: describeRejection(error, "the payto link") };
+    }
+    throw error;
+  }
 }
 
 /**
@@ -135,14 +163,14 @@ export function openedRequestStep(
  * One sentence naming the elements that failed, built from this module's own
  * labels and never from the codec's messages.
  */
-function describeRejection(error: EpcQrError): string {
+function describeRejection(error: EpcQrError, subject: string): string {
   const labels: string[] = [];
   for (const issue of error.issues) {
     const label = ELEMENT_LABELS[issue.element] ?? "an element";
     if (!labels.includes(label)) labels.push(label);
   }
-  if (labels.length === 0) return "the code does not carry a valid payment request";
-  return `the code is not a valid payment request: ${joinLabels(labels)} failed the checks`;
+  if (labels.length === 0) return `${subject} does not carry a valid payment request`;
+  return `${subject} is not a valid payment request: ${joinLabels(labels)} failed the checks`;
 }
 
 function joinLabels(labels: string[]): string {
