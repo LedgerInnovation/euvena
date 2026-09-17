@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_KEYS,
   EpcQrError,
   isNonEeaSepaIban,
   MsctQrError,
@@ -102,6 +103,72 @@ describe("EPC069 structural strictness", () => {
     ).not.toThrow();
     // EEA beneficiaries remain fine without one.
     expect(() => encodeEpcQr({ name: "Alice", iban: "BE72000000001616" })).not.toThrow();
+  });
+});
+
+describe("blank beneficiary names", () => {
+  // Each of these renders as an empty or invisible name, so a review would
+  // show a payment to nobody in particular.
+  const blanks = [
+    " ",
+    "\u00A0",
+    "\u3000",
+    "\uFEFF",
+    "\u200B",
+    "\u2060",
+    "\u200C\u200D",
+    "\u00AD",
+    "\u3164",
+    "\u115F",
+    "\u2800",
+    "\uFE0F",
+    "\u180E",
+    "\u{E0020}",
+    "\u{1BCA0}",
+    "\u{1D173}",
+    " \u200B\uFEFF\u200B ",
+  ];
+
+  it("rejects them when encoding and decoding EPC069-12", () => {
+    for (const name of blanks) {
+      expect(() => encodeEpcQr({ name, iban: "BE72000000001616" })).toThrow(EpcQrError);
+      const payload = ["BCD", "002", "1", "SCT", "", name, "BE72000000001616"].join("\n");
+      expect(() => decodeEpcQr(payload)).toThrow(EpcQrError);
+    }
+  });
+
+  const payeeUrl = (name: string) =>
+    encodeMsctPayeeClear({
+      ...COMMON,
+      context: "p",
+      name,
+      iban: "BE72000000001616",
+      instrument: "INST",
+      amount: "1",
+    });
+
+  it("rejects them for an MSCT payee", () => {
+    // The same payee with a real name encodes, so the rejection is the name's.
+    expect(() => payeeUrl("Alice")).not.toThrow();
+    for (const name of blanks) {
+      expect(() => payeeUrl(name)).toThrow(MsctQrError);
+    }
+  });
+
+  it("rejects them when decoding an MSCT payee", () => {
+    const valid = new URL(payeeUrl("Alice"));
+    expect(() => decodeMsctQr(valid.toString())).not.toThrow();
+    for (const name of blanks) {
+      const url = new URL(valid.toString());
+      url.searchParams.set(DEFAULT_KEYS.name, name);
+      expect(() => decodeMsctQr(url.toString())).toThrow(MsctQrError);
+    }
+  });
+
+  it("still accepts a name that shows something", () => {
+    for (const name of ["A", " Alice ", "Ali\u00ADce", "\u00C9mile", "\u6771\u4EAC"]) {
+      expect(() => encodeEpcQr({ name, iban: "BE72000000001616" })).not.toThrow();
+    }
   });
 });
 

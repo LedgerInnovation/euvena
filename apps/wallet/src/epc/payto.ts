@@ -94,9 +94,9 @@ const DAMAGED = "the payto link is damaged and cannot be read";
  * input. Only the URI's own structure is checked here; the codec judges the
  * values.
  *
- * No option that could change the payment is dropped: each one lands in an
- * element the review shows or is refused, except three that describe people
- * rather than the payment, which are ignored.
+ * Every option lands in an element the review shows or makes the link fail,
+ * except three that describe the parties rather than the payment, which are
+ * ignored.
  * - `receiver-name` is the beneficiary name, which EPC069-12 requires
  * - `amount` must be in euro, at most once (RFC 8905 section 5). Digits past
  *   the cent must be zeros. Commas are refused although the RFC says to
@@ -113,14 +113,16 @@ const DAMAGED = "the payto link is damaged and cannot be read";
  *   `ch-qrr` (a Swiss structured reference) and a `bic` option that would
  *   compete with the path
  *
- * Option names are matched exactly. The GNU Taler wallet reads them that way,
- * so "AMOUNT" is an option that reader skips: honouring it here would have the
+ * Option names are matched exactly, although RFC 5234 makes the RFC's quoted
+ * names case-insensitive. The GNU Taler wallet matches them exactly, so
+ * "AMOUNT" is an option that reader skips: honouring it here would have the
  * two wallets pay different sums. A raw "+" in a value is read as a space, as
  * the GNU Taler wallet reads it and as the PHP and Python query builders that
  * invoicing backends use write one. A literal plus has to arrive as "%2B",
- * which is what buildPaytoUri emits; a producer that leaves it raw loses it. One trailing slash after the account is
- * accepted, since Taler exchanges publish their accounts that way. Reasons are
- * fixed sentences that never repeat the input.
+ * which is what buildPaytoUri emits; a producer that leaves it raw loses it.
+ * One trailing slash after the account is accepted, since Taler exchanges
+ * publish their accounts that way. Reasons are fixed sentences that never
+ * repeat the input.
  */
 export function parsePaytoUri(uri: string): ParsedPaytoUri {
   const prefix = `${PAYTO_SCHEME}://`;
@@ -191,7 +193,7 @@ export function parsePaytoUri(uri: string): ParsedPaytoUri {
   }
 
   const name = decoded.options.get("receiver-name") ?? "";
-  if (name.trim() === "") return { ok: false, reason: "the payto link names no beneficiary" };
+  if (name === "") return { ok: false, reason: "the payto link names no beneficiary" };
 
   const bic = decoded.segments.length === 2 ? decoded.segments[0] : undefined;
   const iban = decoded.segments[decoded.segments.length - 1] ?? "";
@@ -217,7 +219,7 @@ const IGNORED_OPTIONS = new Set(["sender-name", "receiver-postal-code", "receive
 /**
  * `currency ":" unit [ "." fraction ]` (RFC 8905 section 5) as the numeric
  * string EPC069-12 carries after "EUR". Commas are refused rather than
- * ignored, since a decimal comma read that way multiplies the sum. The
+ * ignored, since a decimal comma read that way changes the sum. The
  * fraction may run to eight digits, but a SEPA amount stops at the cent, so
  * anything past it must be zeros: rounding would change what is paid.
  */

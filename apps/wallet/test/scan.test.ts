@@ -273,6 +273,19 @@ describe("rejection reasons name the element and never the value", () => {
     expect(read.reason).not.toContain(", and");
   });
 
+  it("refuses a scanned code whose beneficiary name shows nothing", () => {
+    for (const blank of [" ", "\u00A0", "\u200B"]) {
+      const read = readPaymentRequest(
+        payloadOf(["BCD", "002", "1", "SCT", "", blank, "DE33100205000001194700"]),
+      );
+
+      expect(read).toEqual({
+        ok: false,
+        reason: "the code is not a valid payment request: the beneficiary name failed the checks",
+      });
+    }
+  });
+
   it("reports a truncated payload as a structural failure", () => {
     const read = readPaymentRequest(payloadOf(["BCD", "002", "1", "SCT"]));
 

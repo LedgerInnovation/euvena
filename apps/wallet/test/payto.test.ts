@@ -280,9 +280,17 @@ describe("reading a payto link", () => {
   });
 
   it("requires a beneficiary name", () => {
-    for (const query of ["", "?amount=EUR:5", "?receiver-name=", "?receiver-name=+%20"]) {
+    for (const query of ["", "?amount=EUR:5", "?receiver-name="]) {
       expect(reasonFor(`payto://iban/${IBAN}${query}`)).toBe(
         "the payto link names no beneficiary",
+      );
+    }
+  });
+
+  it("refuses a name that shows nothing", () => {
+    for (const name of ["+%20", "%E2%80%8B", "%20%E2%80%8B%EF%BB%BF%20"]) {
+      expect(reasonFor(`payto://iban/${IBAN}?receiver-name=${name}&amount=EUR:5`)).toBe(
+        "the payto link is not a valid payment request: the beneficiary name failed the checks",
       );
     }
   });

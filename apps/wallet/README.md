@@ -112,13 +112,13 @@ payto://iban/[BIC/]IBAN?receiver-name=...&amount=EUR:12.30&message=...
 ```
 
 The link is turned into the EPC069-12 payload of the same request and read back through the
-decoder in strict mode, so the review shows exactly what an equivalent code would carry. No
-option that could change the payment is dropped: each one lands in an element the review shows or
-makes the link fail, except three that describe people rather than the payment.
+decoder in strict mode, so the review shows exactly what an equivalent code would carry. Every
+option lands in an element the review shows or makes the link fail, except three that describe
+the parties rather than the payment, which are ignored.
 
 | Option | Handling |
 | --- | --- |
-| `receiver-name` | Beneficiary name, required because a code requires one. A blank one fails |
+| `receiver-name` | Beneficiary name, required because a code requires one. A name that shows nothing fails, as it does in a code |
 | `amount` | Euro only and at most once. Digits past the cent must be zeros, since rounding would change what is paid. Commas are refused although the RFC says to ignore them, because a producer writing a decimal comma would have `12,50` paid as 1250 |
 | `message` | Unstructured remittance text (RFC 8905 section 7.3), never the structured reference |
 | `instruction` | Refused. It is the end-to-end identifier, which neither a code nor the handoff can carry. The RFC says to refuse rather than lose it |
@@ -127,8 +127,8 @@ makes the link fail, except three that describe people rather than the payment.
 | anything else | Refused, as is any option given twice. That includes `ch-qrr` (a Swiss structured reference) and a `bic` option that would compete with the path |
 
 The scheme, the target type and the currency are compared without case. Option names are matched
-exactly, as the GNU Taler wallet matches them, so `AMOUNT` is refused instead of being honoured
-here and skipped there. A raw `+` in a value is read as a space, as that wallet reads it and as
+exactly, as the GNU Taler wallet matches them, although RFC 5234 would make them case-insensitive:
+`AMOUNT` is refused instead of being honoured here and skipped there. A raw `+` in a value is read as a space, as that wallet reads it and as
 common query builders write one. A literal plus has to arrive as `%2B`, which is what the handoff
 emits; a producer that leaves it raw loses it. The IBAN and BIC must be plain letters and digits.
 One trailing slash after the account is accepted, since Taler exchanges publish their accounts

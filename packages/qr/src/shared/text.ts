@@ -60,3 +60,25 @@ const CONTROL_CHARS =
 export function hasControlChars(text: string): boolean {
   return CONTROL_CHARS.test(text);
 }
+
+/**
+ * Characters that show nothing: whitespace plus the default ignorable and
+ * filler code points that render as blank space or not at all (soft hyphen,
+ * combining grapheme joiner, Hangul and Khmer fillers, Mongolian variation
+ * selectors, zero-width characters, word joiner and invisible operators, the
+ * Braille blank, variation selectors, the byte order mark, shorthand format
+ * controls, musical formatting and the tag characters). Spelled out rather
+ * than written with Unicode property escapes, which not every JavaScript
+ * engine a consumer runs on supports.
+ */
+const BLANK_CHARS =
+  /[\s\u00AD\u034F\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B-\u200F\u2060-\u206F\u2800\u3164\uFE00-\uFE0F\uFEFF\uFFA0]|\uD82F[\uDCA0-\uDCA3]|\uD834[\uDD73-\uDD7A]|[\uDB40-\uDB43][\uDC00-\uDFFF]/g;
+
+/**
+ * True when the text shows at least one character. A beneficiary name made
+ * only of blank or invisible characters would let a review display a payment
+ * to nobody in particular.
+ */
+export function hasVisibleText(text: string): boolean {
+  return text.replace(BLANK_CHARS, "") !== "";
+}
