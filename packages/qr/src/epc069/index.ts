@@ -242,7 +242,12 @@ export interface DecodeEpcQrOptions {
  */
 export function decodeEpcQr(payload: string, options: DecodeEpcQrOptions = {}): DecodeEpcQrResult {
   const strict = options.strict ?? true;
-  const raw = payload.replace(/[\r\n]+$/, "");
+  // Trailing separators are cut by scanning back from the end. The pattern
+  // /[\r\n]+$/ retries at every separator of a run that more text follows,
+  // which is quadratic in the run length on input that is someone else's.
+  let end = payload.length;
+  while (end > 0 && (payload[end - 1] === "\n" || payload[end - 1] === "\r")) end -= 1;
+  const raw = payload.slice(0, end);
   const lines = raw.replace(/\r\n/g, "\n").split("\n");
 
   if (lines[0] !== "BCD") {

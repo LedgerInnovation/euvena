@@ -1,14 +1,37 @@
-import { useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  AccessibilityInfo,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
 import { type EpcQrData } from "@euvena/qr";
 
 import { buildPaytoUri, handoffFields, type HandoffField } from "../epc/payto";
 import { summarizeRequest } from "../epc/request";
-import { readPastedRequest, readPaymentRequest, type ReadRequestResult } from "../epc/scan";
+import {
+  openedRequestStep,
+  readPastedRequest,
+  readPaymentRequest,
+  type OpenedRequest,
+  type ReadRequestResult,
+} from "../epc/scan";
+
+const WAITING_NOTICE =
+  "Another request was opened. The one below is still the one you were looking at.";
+
+/** How long a newly shown review ignores presses on its handoff actions. */
+const ARM_DELAY_MS = 500;
 
 interface ScanScreenProps {
+  /** The latest request the app was opened with. It can change while the screen is open. */
+  opened: OpenedRequest | null;
   onBack: () => void;
 }
 
@@ -20,10 +43,47 @@ interface ScanScreenProps {
  * the decoded payload in strict mode, and a payload that fails any check is
  * replaced by the rejection as a whole, never shown partially. The paste path
  * takes the same route as a scanned code, so the two cannot drift and the flow
- * stays exercisable where no camera exists.
+ * stays exercisable where no camera exists. A link the app was opened with
+ * lands on the same review and starts nothing by itself: the handoff waits
+ * for the payer.
  */
-export function ScanScreen({ onBack }: ScanScreenProps) {
-  const [result, setResult] = useState<ReadRequestResult | null>(null);
+export function ScanScreen({ opened, onBack }: ScanScreenProps) {
+  const [result, setResult] = useState<ReadRequestResult | null>(opened?.result ?? null);
+  // The last opened request this screen has dealt with, whether it showed it,
+  // found it identical to what was shown or the payer moved past it.
+  const [handledId, setHandledId] = useState<number | null>(opened?.id ?? null);
+  // The opened request on screen, which keys the review. Unlike handledId it
+  // stays put when the same request is opened again, so nothing resets.
+  const [shownId, setShownId] = useState<number | null>(opened?.id ?? null);
+
+  const unhandled = opened !== null && opened.id !== handledId ? opened : null;
+  const step = unhandled === null ? null : openedRequestStep(result, unhandled.result);
+  if (unhandled !== null && step !== "hold") {
+    // Adjusted during render, React's pattern for state that follows a prop.
+    setHandledId(unhandled.id);
+    if (step === "show") {
+      setResult(unhandled.result);
+      setShownId(unhandled.id);
+    }
+  }
+  const waiting = step === "hold" ? unhandled : null;
+
+  const waitingId = waiting?.id ?? null;
+  useEffect(() => {
+    if (waitingId !== null) AccessibilityInfo.announceForAccessibility(WAITING_NOTICE);
+  }, [waitingId]);
+
+  const show = (next: OpenedRequest) => {
+    setResult(next.result);
+    setHandledId(next.id);
+    setShownId(next.id);
+  };
+  // Reading another moves past any request still waiting, so the camera opens
+  // as asked instead of the waiting request appearing in its place.
+  const reset = () => {
+    setResult(null);
+    setHandledId(opened?.id ?? null);
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -38,6 +98,15 @@ export function ScanScreen({ onBack }: ScanScreenProps) {
         sends nothing.
       </Text>
 
+      {waiting === null ? null : (
+        <View style={styles.waiting}>
+          <Text style={styles.issue}>{WAITING_NOTICE}</Text>
+          <Pressable onPress={() => show(waiting)} accessibilityRole="button" style={styles.secondary}>
+            <Text style={styles.secondaryLabel}>Show the new request</Text>
+          </Pressable>
+        </View>
+      )}
+
       {result === null ? (
         <>
           {/* A scanned code is read byte for byte; pasted text sheds its outer
@@ -46,9 +115,11 @@ export function ScanScreen({ onBack }: ScanScreenProps) {
           <PasteEntry onRead={(text) => setResult(readPastedRequest(text))} />
         </>
       ) : result.ok ? (
-        <ReviewPanel data={result.data} onReset={() => setResult(null)} />
+        // Keyed so a request shown in place of another starts with fresh
+        // handoff state rather than the previous one's copy markers.
+        <ReviewPanel key={shownId ?? "read"} data={result.data} onReset={reset} />
       ) : (
-        <RejectionPanel reason={result.reason} onReset={() => setResult(null)} />
+        <RejectionPanel reason={result.reason} onReset={reset} />
       )}
     </ScrollView>
   );
@@ -175,8 +246,18 @@ function HandoffActions({ data }: { data: EpcQrData }) {
   const [opening, setOpening] = useState(false);
   const [noHandler, setNoHandler] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    // A review can appear under a finger that was headed for something else,
+    // such as when a link opens while the camera is showing. Its actions
+    // ignore presses until it has been on screen for a moment.
+    const timer = setTimeout(() => setArmed(true), ARM_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   const onOpen = async () => {
+    if (!armed) return;
     setOpening(true);
     setNoHandler(false);
     try {
@@ -190,6 +271,7 @@ function HandoffActions({ data }: { data: EpcQrData }) {
   };
 
   const onCopy = async (field: HandoffField) => {
+    if (!armed) return;
     try {
       await Clipboard.setStringAsync(field.value);
       setCopied(field.label);
@@ -356,6 +438,9 @@ const styles = StyleSheet.create({
     color: "#b3261e",
   },
   panel: {
+    gap: 8,
+  },
+  waiting: {
     gap: 8,
   },
   handoff: {

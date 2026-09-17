@@ -25,6 +25,7 @@
     "expo": "~57.0.12",
     "expo-camera": "~57.0.4",
     "expo-clipboard": "~57.0.1",
+    "expo-linking": "~57.0.10",
     "expo-status-bar": "~57.0.1",
     "qrcode": "^1.5.4",
     "react": "19.2.3",

@@ -11,8 +11,9 @@ no accounts and no backend.
 
 The request flow is implemented. Enter an amount and remittance information to get an EPC069-12
 code with the decoded values printed beside it, and share that request through the share sheet of
-the operating system. Reading a shared link back into the app, scanning and handoff are not
-implemented yet; see the checklist on the tracking issue.
+the operating system. On the paying side the app scans a code, reads a pasted request or opens a
+shared link, shows what the request says and then hands it to a banking app. EN 18184 codes are
+not supported yet; see the checklist on the tracking issue.
 
 ## The request flow
 
@@ -60,11 +61,46 @@ wallet never emits an unescaped one and a remittance line may legitimately conta
 that message apps like to split off the end of a link is kept inside escapes, so a link that does
 get clipped reads as damaged instead of decoding to an altered request.
 
-`euvena` is the app's only URI scheme. This is a deliberate breaking migration: links shared
-under the pre-rename `eupi` scheme are refused, so that exactly one scheme is registered with
-the operating system and accepted by the parser. A refused pre-rename link gets a message
-saying to ask for a fresh link or code, and its payload is never decoded. Handling an
-incoming link is part of the scan and review flow and is not wired up yet.
+`euvena` is the only link scheme the app reads. This is a deliberate breaking migration: links shared
+under the pre-rename `eupi` scheme are refused, so that the app registers no scheme for them and
+the parser accepts exactly one. A pasted pre-rename link gets a message saying to ask for a fresh
+link or code. Its payload is never decoded.
+
+## Opening a shared link
+
+Tapping a `euvena://request` link opens the app on the review screen, whether the link starts the
+app or reaches it while it is already running. The link is read by the same parser as a pasted
+one, so the review shows exactly what a scanned code would show. A link that fails any check
+opens the rejection screen instead and nothing from it is displayed. Opening a link only shows
+the request: handing it to a banking app still waits for the payer. A link goes straight to
+review even on a first run, because paying someone needs no payee settings.
+
+A request that is already on screen is never replaced in place. If another link arrives while
+the payer is looking at one, the screen keeps it and says that a new request is waiting. The new
+one appears only when the payer asks for it. Opening the same request again changes nothing. A
+review that has just appeared ignores presses on its handoff actions for half a second, so a tap
+meant for the screen it replaced cannot act on it.
+
+Links are read through `expo-linking`, whose native side keeps the latest link even when it
+arrives before the JavaScript side is listening, such as a link that restarts the app after
+Android stopped it in the background. The app clears that link once it has read it, so a
+remounted app does not open it again. For the same reason, the config plugin in `plugins/` makes
+Android drop the link a task first started with whenever it recreates the app from saved state or
+starts it from Recents, since that link belongs to an earlier visit. A link the app had no time to
+show before the system stopped it is dropped as well and has to be opened again.
+
+Only URLs in the wallet's own scheme are read. That check is made in the app rather than left to
+the system: any Android app can address the app directly with a URL of its choosing, while an
+iOS build also registers its bundle identifier as a scheme. Expo Go launches the project with an
+`exp://` URL of its own and does not register the `euvena` scheme, so link opening can only be
+tried in a build that registers it, such as one made with `npx expo run:android`. With that build
+installed on an emulator or a connected device, this opens a request for 10 euro:
+
+```sh
+adb shell "am start -a android.intent.action.VIEW -d 'euvena://request?epc=BCD%0A002%0A1%0ASCT%0A%0AWikimedia%20Foerdergesellschaft%0ADE33100205000001194700%0AEUR10%0A%0A%0ADonation'"
+```
+
+The paste entry reads the same links through the same parser and works in Expo Go.
 
 ## Running it
 
@@ -95,7 +131,8 @@ pnpm --filter @euvena/wallet build   # bundles the JS, no native toolchain requi
 
 | Path | Purpose |
 | --- | --- |
-| `App.tsx` | Root component, loads the payee settings and switches between the two screens |
+| `App.tsx` | Root component, loads the payee settings, opens incoming links and switches between the screens |
+| `plugins/` | Config plugin that keeps a restored Android activity from reopening its launch link |
 | `src/epc/` | Form state to EPC069-12 payload, the link form of a request, plus the display formatting |
 | `src/qr/` | QR symbol construction and its SVG path |
 | `src/settings/` | Payee settings, on-device only |

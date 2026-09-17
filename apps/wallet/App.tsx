@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, SafeAreaView, StyleSheet } from "react-native";
+import * as Linking from "expo-linking";
 import { StatusBar } from "expo-status-bar";
 
 import { EMPTY_PAYEE, type Payee } from "./src/epc/request";
+import { readOpenedLink, type OpenedRequest } from "./src/epc/scan";
 import { loadPayee, savePayee } from "./src/settings/storage";
 import { PayeeScreen } from "./src/ui/PayeeScreen";
 import { RequestScreen } from "./src/ui/RequestScreen";
@@ -18,15 +20,44 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [screen, setScreen] = useState<Screen>("request");
   const [loadFailed, setLoadFailed] = useState(false);
+  const [opened, setOpened] = useState<OpenedRequest | null>(null);
+  // Outlives a remount of the effect, so arrival numbers never repeat.
+  const arrivals = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    // The settings read below only redirects from the start screen, so a link
+    // that is already on screen keeps it.
+    const leaveStart = () => setScreen((current) => (current === "request" ? "payee" : current));
+
+    const openLink = (url: string | null) => {
+      const result = readOpenedLink(url);
+      if (cancelled || result === null) return;
+      // The native side keeps the latest link until it is cleared. Clearing it
+      // once it is read keeps a remounted app from opening it a second time.
+      Linking.clearInitialURL();
+      arrivals.current += 1;
+      setOpened({ id: arrivals.current, result });
+      setScreen("scan");
+    };
+
+    // Subscribed before the launch link is read, so a link that arrives in
+    // between is not missed.
+    const subscription = Linking.addEventListener("url", (event) => openLink(event.url));
+
+    // The launch link is read from the native side, which also holds a link
+    // that arrived before JavaScript was listening, such as one that restarted
+    // the app after the system had stopped it. It is read before the settings,
+    // so a request opened by link goes straight to review, first run included:
+    // paying needs no payee.
+    openLink(Linking.getLinkingURL());
+
     void loadPayee()
       .then((stored) => {
         if (cancelled) return;
         setPayee(stored);
         // A first run has nothing to build a code from, so start in settings.
-        if (stored.iban === "") setScreen("payee");
+        if (stored.iban === "") leaveStart();
       })
       .catch(() => {
         if (cancelled) return;
@@ -34,7 +65,7 @@ export default function App() {
         // never set, so send the user to the form and say why it is empty
         // rather than presenting the failure as a first run.
         setLoadFailed(true);
-        setScreen("payee");
+        leaveStart();
       })
       .finally(() => {
         // Runs on both paths: a rejected read must not strand the spinner.
@@ -42,6 +73,7 @@ export default function App() {
       });
     return () => {
       cancelled = true;
+      subscription.remove();
     };
   }, []);
 
@@ -51,7 +83,8 @@ export default function App() {
     await savePayee(next);
     setPayee(next);
     setLoadFailed(false);
-    setScreen("request");
+    // A link opened while the write was running has moved on to its review.
+    setScreen((current) => (current === "payee" ? "request" : current));
   }, []);
 
   return (
@@ -67,12 +100,17 @@ export default function App() {
           notice={loadFailed ? READ_FAILED_NOTICE : null}
         />
       ) : screen === "scan" ? (
-        <ScanScreen onBack={() => setScreen("request")} />
+        <ScanScreen opened={opened} onBack={() => setScreen("request")} />
       ) : (
         <RequestScreen
           payee={payee}
           onEditPayee={() => setScreen("payee")}
-          onScan={() => setScreen("scan")}
+          onScan={() => {
+            // Scanning by choice starts from the camera, not from a link
+            // reviewed earlier.
+            setOpened(null);
+            setScreen("scan");
+          }}
         />
       )}
     </SafeAreaView>
