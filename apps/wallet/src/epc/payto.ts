@@ -94,11 +94,14 @@ const DAMAGED = "the payto link is damaged and cannot be read";
  * input. Only the URI's own structure is checked here; the codec judges the
  * values.
  *
- * Every option maps onto an element the review shows or is refused, so what
- * the payer reviews is everything the link asked for:
+ * No option that could change the payment is dropped: each one lands in an
+ * element the review shows or is refused, except three that describe people
+ * rather than the payment, which are ignored.
  * - `receiver-name` is the beneficiary name, which EPC069-12 requires
- * - `amount` must be in euro, at most once (RFC 8905 section 5); commas are
- *   ignored as the RFC says, and digits past the cent must be zeros
+ * - `amount` must be in euro, at most once (RFC 8905 section 5). Digits past
+ *   the cent must be zeros. Commas are refused although the RFC says to
+ *   ignore them: a producer writing a decimal comma would otherwise have
+ *   "12,50" paid as 1250
  * - `message` is the unstructured remittance text (section 7.3)
  * - `instruction` is the end-to-end identifier, which neither a code nor the
  *   handoff can carry. Section 6 says to refuse rather than lose it
@@ -110,12 +113,12 @@ const DAMAGED = "the payto link is damaged and cannot be read";
  *   `ch-qrr` (a Swiss structured reference) and a `bic` option that would
  *   compete with the path
  *
- * Option names are compared without case because RFC 5234 string literals are
- * case-insensitive: "AMOUNT" next to "amount" is a repeat, not an unknown
- * option another reader might honour. A raw "+" in a value is read as a space,
- * as the GNU Taler wallet reads it and as the PHP and Python query builders
- * that invoicing backends use write one; a literal plus arrives as "%2B",
- * which is what buildPaytoUri emits. One trailing slash after the account is
+ * Option names are matched exactly. The GNU Taler wallet reads them that way,
+ * so "AMOUNT" is an option that reader skips: honouring it here would have the
+ * two wallets pay different sums. A raw "+" in a value is read as a space, as
+ * the GNU Taler wallet reads it and as the PHP and Python query builders that
+ * invoicing backends use write one. A literal plus has to arrive as "%2B",
+ * which is what buildPaytoUri emits; a producer that leaves it raw loses it. One trailing slash after the account is
  * accepted, since Taler exchanges publish their accounts that way. Reasons are
  * fixed sentences that never repeat the input.
  */
@@ -124,7 +127,7 @@ export function parsePaytoUri(uri: string): ParsedPaytoUri {
   if (uri.slice(0, prefix.length).toLowerCase() !== prefix) {
     return { ok: false, reason: "not a payto link" };
   }
-  // RFC 8905 has no fragment, and a stray one must not ride into a value.
+  // RFC 8905 has no fragment. A stray one must not ride into a value.
   if (uri.includes("#")) return { ok: false, reason: MALFORMED };
 
   const rest = uri.slice(prefix.length);
@@ -149,7 +152,7 @@ export function parsePaytoUri(uri: string): ParsedPaytoUri {
     for (const pair of query.split("&")) {
       const separator = pair.indexOf("=");
       if (separator < 1) return { ok: false, reason: MALFORMED };
-      const name = pair.slice(0, separator).toLowerCase();
+      const name = pair.slice(0, separator);
       if (options.has(name)) return { ok: false, reason: "the payto link repeats an option" };
       options.set(name, pair.slice(separator + 1));
     }
@@ -188,7 +191,7 @@ export function parsePaytoUri(uri: string): ParsedPaytoUri {
   }
 
   const name = decoded.options.get("receiver-name") ?? "";
-  if (name === "") return { ok: false, reason: "the payto link names no beneficiary" };
+  if (name.trim() === "") return { ok: false, reason: "the payto link names no beneficiary" };
 
   const bic = decoded.segments.length === 2 ? decoded.segments[0] : undefined;
   const iban = decoded.segments[decoded.segments.length - 1] ?? "";
@@ -213,9 +216,10 @@ const IGNORED_OPTIONS = new Set(["sender-name", "receiver-postal-code", "receive
 
 /**
  * `currency ":" unit [ "." fraction ]` (RFC 8905 section 5) as the numeric
- * string EPC069-12 carries after "EUR". Commas are ignored as the RFC says.
- * The fraction may run to eight digits, but a SEPA amount stops at the cent,
- * so anything past it must be zeros: rounding would change what is paid.
+ * string EPC069-12 carries after "EUR". Commas are refused rather than
+ * ignored, since a decimal comma read that way multiplies the sum. The
+ * fraction may run to eight digits, but a SEPA amount stops at the cent, so
+ * anything past it must be zeros: rounding would change what is paid.
  */
 function readPaytoAmount(value: string): { ok: true; value: string } | { ok: false; reason: string } {
   const unusable = { ok: false, reason: "the payto link carries an amount this wallet cannot use" } as const;
@@ -226,10 +230,11 @@ function readPaytoAmount(value: string): { ok: true; value: string } | { ok: fal
     return { ok: false, reason: "the payto link asks for a currency other than euro" };
   }
 
+  // Digits only on both sides of the point, so a comma never gets through.
   const number = value.slice(separator + 1);
   const point = number.indexOf(".");
-  const unit = (point === -1 ? number : number.slice(0, point)).replace(/,/g, "");
-  const fraction = point === -1 ? undefined : number.slice(point + 1).replace(/,/g, "");
+  const unit = point === -1 ? number : number.slice(0, point);
+  const fraction = point === -1 ? undefined : number.slice(point + 1);
   if (!/^\d+$/.test(unit)) return unusable;
   if (fraction !== undefined && !/^\d{1,8}$/.test(fraction)) return unusable;
   if (fraction !== undefined && !/^0*$/.test(fraction.slice(2))) return unusable;

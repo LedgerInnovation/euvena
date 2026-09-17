@@ -157,14 +157,21 @@ describe("reading a payto link", () => {
     expect(read.data.reference).toBeUndefined();
   });
 
-  it("reads the scheme, target type and option names without regard to case", () => {
-    const read = readPastedRequest(
-      `  PAYTO://IBAN/${IBAN}?AMOUNT=eur:1,000.5&Receiver-Name=Alice  `,
-    );
+  it("reads the scheme, target type and currency without regard to case", () => {
+    const read = readPastedRequest(`  PAYTO://IBAN/${IBAN}?amount=eur:1000.5&receiver-name=Alice  `);
 
     expect(read.ok).toBe(true);
     if (!read.ok) return;
     expect(read.data.amount).toBe("1000.5");
+  });
+
+  it("matches option names exactly, as the GNU Taler wallet does", () => {
+    // That wallet would skip "AMOUNT" and pay nothing fixed, or pay "amount".
+    for (const query of [`${NAME}&AMOUNT=EUR:1000`, "Receiver-Name=Mallory"]) {
+      expect(reasonFor(`payto://iban/${IBAN}?${query}`)).toBe(
+        "the payto link carries an option this wallet does not know",
+      );
+    }
   });
 
   it("keeps digits past the cent only when they are zeros", () => {
@@ -188,7 +195,27 @@ describe("reading a payto link", () => {
   });
 
   it("refuses amounts a transfer cannot carry", () => {
-    for (const amount of ["EUR:", "EUR:.5", "EUR:10.", "EUR:,", "EUR:1:2", "EUR:-5", "EUR:0", "EUR:0.001", "EUR:1000000000", "10"]) {
+    for (const amount of [
+      "EUR:",
+      "EUR:.5",
+      "EUR:10.",
+      "EUR:1:2",
+      "EUR:-5",
+      "EUR:0",
+      "EUR:0.001",
+      "EUR:1000000000",
+      "10",
+    ]) {
+      expect(reasonFor(`payto://iban/${IBAN}?${NAME}&amount=${amount}`)).toBe(
+        "the payto link carries an amount this wallet cannot use",
+      );
+    }
+  });
+
+  it("refuses any comma rather than guessing which way it separates", () => {
+    // RFC 8905 says to ignore commas, which would pay a decimal comma as a
+    // hundredfold sum and "1.500,00" as 1.50.
+    for (const amount of ["EUR:12,50", "EUR:1%2C50", "EUR:1,000.50", "EUR:1.500,00", "EUR:,"]) {
       expect(reasonFor(`payto://iban/${IBAN}?${NAME}&amount=${amount}`)).toBe(
         "the payto link carries an amount this wallet cannot use",
       );
@@ -201,13 +228,11 @@ describe("reading a payto link", () => {
     );
   });
 
-  it("refuses an amount given twice, whatever its case", () => {
+  it("refuses an option given twice", () => {
     // Two readers resolving the repeat differently would pay different sums.
-    for (const query of [`amount=EUR:1&amount=EUR:1000`, `amount=EUR:1&AMOUNT=EUR:1000`]) {
-      expect(reasonFor(`payto://iban/${IBAN}?${NAME}&${query}`)).toBe(
-        "the payto link repeats an option",
-      );
-    }
+    expect(reasonFor(`payto://iban/${IBAN}?${NAME}&amount=EUR:1&amount=EUR:1000`)).toBe(
+      "the payto link repeats an option",
+    );
     expect(reasonFor(`payto://iban/${IBAN}?${NAME}&receiver-name=Mallory`)).toBe(
       "the payto link repeats an option",
     );
@@ -255,7 +280,7 @@ describe("reading a payto link", () => {
   });
 
   it("requires a beneficiary name", () => {
-    for (const query of ["", "?amount=EUR:5", "?receiver-name="]) {
+    for (const query of ["", "?amount=EUR:5", "?receiver-name=", "?receiver-name=+%20"]) {
       expect(reasonFor(`payto://iban/${IBAN}${query}`)).toBe(
         "the payto link names no beneficiary",
       );
