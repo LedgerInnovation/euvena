@@ -126,6 +126,8 @@ describe("blank beneficiary names", () => {
     "\u{E0020}",
     "\u{1BCA0}",
     "\u{1D173}",
+    "\uFFF0",
+    "\uFFF8",
     " \u200B\uFEFF\u200B ",
   ];
 
@@ -163,6 +165,12 @@ describe("blank beneficiary names", () => {
       url.searchParams.set(DEFAULT_KEYS.name, name);
       expect(() => decodeMsctQr(url.toString())).toThrow(MsctQrError);
     }
+  });
+
+  it("reports a missing name as a validation issue, not a crash", () => {
+    // Plain JavaScript callers can pass form data without a name.
+    const input = { iban: "BE72000000001616" } as unknown as Parameters<typeof encodeEpcQr>[0];
+    expect(() => encodeEpcQr(input)).toThrow(EpcQrError);
   });
 
   it("still accepts a name that shows something", () => {

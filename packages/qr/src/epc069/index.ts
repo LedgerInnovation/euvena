@@ -131,10 +131,10 @@ function collectIssues(data: EpcQrData): EpcQrIssue[] {
     });
   }
 
-  if (!hasVisibleText(data.name) || data.name.length > 70) {
+  if (!data.name || !hasVisibleText(data.name) || data.name.length > 70) {
     issues.push({
       element: "name",
-      message: "beneficiary name is mandatory, 1..70 characters with at least one visible",
+      message: "beneficiary name is mandatory, 1..70 characters of which at least one is visible",
     });
   }
 

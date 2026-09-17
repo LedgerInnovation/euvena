@@ -29,6 +29,9 @@ import { isValidIban, isValidRfReference, normalizeIban } from "../shared/iban.j
 import { formatAmount, isValidAmountString } from "../shared/amount.js";
 import { hasControlChars, hasVisibleText } from "../shared/text.js";
 
+const PAYEE_NAME_MESSAGE =
+  "payee name is mandatory, 1..70 characters of which at least one is visible";
+
 /** Payment context for payee-presented QR codes (EPC024-22 section 4.5). */
 export type MsctContext = "m" | "e" | "i" | "p" | "w";
 
@@ -335,7 +338,7 @@ export function encodeMsctPayeeClear(options: PayeeClearOptions): string {
   checkText("referencePartyName", options.referencePartyName, issues);
   checkText("referencePartyTradeName", options.referencePartyTradeName, issues);
   if (!hasVisibleText(options.name) || options.name.length > 70) {
-    issues.push({ field: "name", message: "payee name must be 1..70 characters" });
+    issues.push({ field: "name", message: PAYEE_NAME_MESSAGE });
   }
   if (options.tradeName !== undefined && (options.tradeName.length < 1 || options.tradeName.length > 35)) {
     issues.push({ field: "tradeName", message: "trade name must be 1..35 characters" });
@@ -665,10 +668,7 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
   } else if (iban !== null) {
     const name = params.get(keys.name) ?? "";
     if (!hasVisibleText(name) || name.length > 70) {
-      issues.push({
-        field: "name",
-        message: "payee name is mandatory, 1..70 characters with at least one visible",
-      });
+      issues.push({ field: "name", message: PAYEE_NAME_MESSAGE });
     }
     if (!isValidIban(iban)) issues.push({ field: "iban", message: `invalid IBAN "${iban}"` });
     const tn = params.get(keys.tradeName);

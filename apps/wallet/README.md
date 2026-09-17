@@ -61,10 +61,10 @@ wallet never emits an unescaped one and a remittance line may legitimately conta
 that message apps like to split off the end of a link is kept inside escapes, so a link that does
 get clipped reads as damaged instead of decoding to an altered request.
 
-`euvena` is the only link scheme the app reads. This is a deliberate breaking migration: links shared
-under the pre-rename `eupi` scheme are refused, so that the app registers no scheme for them and
-the parser accepts exactly one. A pasted pre-rename link gets a message saying to ask for a fresh
-link or code. Its payload is never decoded.
+`euvena` is the only link scheme the app reads. This is a deliberate breaking migration: links
+shared under the pre-rename `eupi` scheme are refused, so that the app registers no scheme for them
+and the parser accepts exactly one. A pasted pre-rename link gets a message saying to ask for a
+fresh link or code. Its payload is never decoded.
 
 ## Opening a shared link
 
@@ -128,12 +128,12 @@ the parties rather than the payment, which are ignored.
 
 The scheme, the target type and the currency are compared without case. Option names are matched
 exactly, as the GNU Taler wallet matches them, although RFC 5234 would make them case-insensitive:
-`AMOUNT` is refused instead of being honoured here and skipped there. A raw `+` in a value is read as a space, as that wallet reads it and as
-common query builders write one. A literal plus has to arrive as `%2B`, which is what the handoff
-emits; a producer that leaves it raw loses it. The IBAN and BIC must be plain letters and digits.
-One trailing slash after the account is accepted, since Taler exchanges publish their accounts
-that way. Other target types, userinfo, a port, a fragment or further path segments make the link
-fail.
+`AMOUNT` is refused instead of being honoured here and skipped there. A raw `+` in a value is read
+as a space, as that wallet reads it and as common query builders write one. A literal plus has to
+arrive as `%2B`, which is what the handoff emits; a producer that leaves it raw loses it. The IBAN
+and BIC must be plain letters and digits. One trailing slash after the account is accepted, since
+Taler exchanges publish their accounts that way. Other target types, userinfo, a port, a fragment or
+further path segments make the link fail.
 
 The app does not register `payto` with the operating system, so a tapped payto link does not
 open it. The handoff itself opens a payto URI, so a wallet registered for the scheme would be
