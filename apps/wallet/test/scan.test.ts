@@ -10,6 +10,7 @@ import {
 } from "../src/epc/request";
 import {
   NOT_A_PAYMENT_INPUT,
+  openedRequestStep,
   readOpenedLink,
   readPastedRequest,
   readPaymentRequest,
@@ -183,6 +184,37 @@ describe("readOpenedLink reads the link the app was opened with", () => {
     const read = readOpenedLink(tampered);
 
     expect(read).toEqual({ ok: false, reason: "the link does not carry a valid payment request" });
+  });
+});
+
+describe("openedRequestStep never swaps what the payer is looking at", () => {
+  const first = requestFor({ amount: "10", remittanceKind: "text", remittance: "Invoice 7" });
+  const second = requestFor({ amount: "10", remittanceKind: "text", remittance: "Invoice 8" });
+  const read = (payload: string) => readPaymentRequest(payload);
+  const damaged = { ok: false, reason: "the link is damaged and cannot be read" } as const;
+  const invalid = { ok: false, reason: "the link does not carry a valid payment request" } as const;
+
+  it("shows an opened request when nothing is on screen", () => {
+    expect(openedRequestStep(null, read(first.payload))).toBe("show");
+    expect(openedRequestStep(null, damaged)).toBe("show");
+  });
+
+  it("holds a different request back while a review is on screen", () => {
+    expect(openedRequestStep(read(first.payload), read(second.payload))).toBe("hold");
+  });
+
+  it("holds a rejection back while a review is on screen, and the other way round", () => {
+    expect(openedRequestStep(read(first.payload), damaged)).toBe("hold");
+    expect(openedRequestStep(damaged, read(first.payload))).toBe("hold");
+  });
+
+  it("holds a different rejection back while a rejection is on screen", () => {
+    expect(openedRequestStep(damaged, invalid)).toBe("hold");
+  });
+
+  it("treats the same request opened again as nothing new", () => {
+    expect(openedRequestStep(read(first.payload), read(first.payload))).toBe("same");
+    expect(openedRequestStep(damaged, { ...damaged })).toBe("same");
   });
 });
 

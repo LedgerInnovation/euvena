@@ -1,21 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Linking, SafeAreaView, StyleSheet } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, SafeAreaView, StyleSheet } from "react-native";
+import * as Linking from "expo-linking";
 import { StatusBar } from "expo-status-bar";
 
 import { EMPTY_PAYEE, type Payee } from "./src/epc/request";
-import { readOpenedLink, type ReadRequestResult } from "./src/epc/scan";
+import { readOpenedLink, type OpenedRequest } from "./src/epc/scan";
 import { loadPayee, savePayee } from "./src/settings/storage";
 import { PayeeScreen } from "./src/ui/PayeeScreen";
 import { RequestScreen } from "./src/ui/RequestScreen";
 import { ScanScreen } from "./src/ui/ScanScreen";
 
 type Screen = "request" | "payee" | "scan";
-
-/** A request the app was opened with, numbered so each arrival gets a fresh review. */
-interface OpenedRequest {
-  id: number;
-  result: ReadRequestResult;
-}
 
 const READ_FAILED_NOTICE =
   "Saved settings could not be read from this device. Enter them again to build a code.";
@@ -26,37 +21,39 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("request");
   const [loadFailed, setLoadFailed] = useState(false);
   const [opened, setOpened] = useState<OpenedRequest | null>(null);
+  // Outlives a remount of the effect, so arrival numbers never repeat.
+  const arrivals = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
     // Once a link is on screen, the settings read below must not send the user
-    // away from it, and a launch URL that resolves late must not replace it.
+    // away from it.
     let linkShown = false;
-    let arrivals = 0;
 
     const openLink = (url: string | null) => {
-      if (cancelled) return;
       const result = readOpenedLink(url);
-      if (result === null) return;
+      if (cancelled || result === null) return;
+      // The native side keeps the latest link until it is cleared. Clearing it
+      // once it is read keeps a remounted app from opening it a second time.
+      Linking.clearInitialURL();
       linkShown = true;
-      arrivals += 1;
-      setOpened({ id: arrivals, result });
+      arrivals.current += 1;
+      setOpened({ id: arrivals.current, result });
       setScreen("scan");
     };
 
-    // Subscribed before the launch URL is read, so a link that arrives in
+    // Subscribed before the launch link is read, so a link that arrives in
     // between is not missed.
     const subscription = Linking.addEventListener("url", (event) => openLink(event.url));
 
-    // The launch URL is settled before the settings are, so a request opened by
-    // link goes straight to review, first run included: paying needs no payee.
-    // A launch URL that cannot be read counts as a launch without one.
-    const launch = Linking.getInitialURL().catch(() => null);
-    void launch.then((url) => {
-      if (!linkShown) openLink(url);
-    });
-    void launch
-      .then(() => loadPayee())
+    // The launch link is read from the native side, which also holds a link
+    // that arrived before JavaScript was listening, such as one that restarted
+    // the app after the system had stopped it. It is read before the settings,
+    // so a request opened by link goes straight to review, first run included:
+    // paying needs no payee.
+    openLink(Linking.getLinkingURL());
+
+    void loadPayee()
       .then((stored) => {
         if (cancelled) return;
         setPayee(stored);
@@ -87,7 +84,8 @@ export default function App() {
     await savePayee(next);
     setPayee(next);
     setLoadFailed(false);
-    setScreen("request");
+    // A link opened while the write was running has moved on to its review.
+    setScreen((current) => (current === "payee" ? "request" : current));
   }, []);
 
   return (
@@ -103,13 +101,7 @@ export default function App() {
           notice={loadFailed ? READ_FAILED_NOTICE : null}
         />
       ) : screen === "scan" ? (
-        <ScanScreen
-          key={opened?.id ?? 0}
-          initialResult={opened?.result ?? null}
-          // A link can open the app before any payee exists, and requesting
-          // money starts with one, so leaving goes to settings in that case.
-          onBack={() => setScreen(payee.iban === "" ? "payee" : "request")}
-        />
+        <ScanScreen opened={opened} onBack={() => setScreen("request")} />
       ) : (
         <RequestScreen
           payee={payee}

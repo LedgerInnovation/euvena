@@ -6,15 +6,17 @@ import { type EpcQrData } from "@euvena/qr";
 
 import { buildPaytoUri, handoffFields, type HandoffField } from "../epc/payto";
 import { summarizeRequest } from "../epc/request";
-import { readPastedRequest, readPaymentRequest, type ReadRequestResult } from "../epc/scan";
+import {
+  openedRequestStep,
+  readPastedRequest,
+  readPaymentRequest,
+  type OpenedRequest,
+  type ReadRequestResult,
+} from "../epc/scan";
 
 interface ScanScreenProps {
-  /**
-   * A request that arrived before the screen opened, such as a link the app
-   * was opened with. Read once on mount: the caller remounts the screen with a
-   * new key for each new arrival.
-   */
-  initialResult: ReadRequestResult | null;
+  /** The latest request the app was opened with. It can change while the screen is open. */
+  opened: OpenedRequest | null;
   onBack: () => void;
 }
 
@@ -30,8 +32,31 @@ interface ScanScreenProps {
  * lands on the same review and starts nothing by itself: the handoff waits
  * for the payer.
  */
-export function ScanScreen({ initialResult, onBack }: ScanScreenProps) {
-  const [result, setResult] = useState<ReadRequestResult | null>(initialResult);
+export function ScanScreen({ opened, onBack }: ScanScreenProps) {
+  const [result, setResult] = useState<ReadRequestResult | null>(opened?.result ?? null);
+  // The last opened request this screen has dealt with, whether it showed it,
+  // found it identical to what was shown or the payer moved past it.
+  const [handledId, setHandledId] = useState<number | null>(opened?.id ?? null);
+
+  const unhandled = opened !== null && opened.id !== handledId ? opened : null;
+  const step = unhandled === null ? null : openedRequestStep(result, unhandled.result);
+  if (unhandled !== null && step !== "hold") {
+    // Adjusted during render, React's pattern for state that follows a prop.
+    setHandledId(unhandled.id);
+    if (step === "show") setResult(unhandled.result);
+  }
+  const waiting = step === "hold" ? unhandled : null;
+
+  const show = (next: OpenedRequest) => {
+    setResult(next.result);
+    setHandledId(next.id);
+  };
+  // Reading another moves past any request still waiting, so the camera opens
+  // as asked instead of the waiting request appearing in its place.
+  const reset = () => {
+    setResult(null);
+    setHandledId(opened?.id ?? null);
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -46,6 +71,17 @@ export function ScanScreen({ initialResult, onBack }: ScanScreenProps) {
         sends nothing.
       </Text>
 
+      {waiting === null ? null : (
+        <View style={styles.waiting}>
+          <Text style={styles.issue} accessibilityLiveRegion="polite">
+            Another request was opened. The one below is still the one you were looking at.
+          </Text>
+          <Pressable onPress={() => show(waiting)} accessibilityRole="button" style={styles.secondary}>
+            <Text style={styles.secondaryLabel}>Show the new request</Text>
+          </Pressable>
+        </View>
+      )}
+
       {result === null ? (
         <>
           {/* A scanned code is read byte for byte; pasted text sheds its outer
@@ -54,9 +90,11 @@ export function ScanScreen({ initialResult, onBack }: ScanScreenProps) {
           <PasteEntry onRead={(text) => setResult(readPastedRequest(text))} />
         </>
       ) : result.ok ? (
-        <ReviewPanel data={result.data} onReset={() => setResult(null)} />
+        // Keyed so a request shown in place of another starts with fresh
+        // handoff state rather than the previous one's copy markers.
+        <ReviewPanel key={handledId ?? "read"} data={result.data} onReset={reset} />
       ) : (
-        <RejectionPanel reason={result.reason} onReset={() => setResult(null)} />
+        <RejectionPanel reason={result.reason} onReset={reset} />
       )}
     </ScrollView>
   );
@@ -364,6 +402,9 @@ const styles = StyleSheet.create({
     color: "#b3261e",
   },
   panel: {
+    gap: 8,
+  },
+  waiting: {
     gap: 8,
   },
   handoff: {
