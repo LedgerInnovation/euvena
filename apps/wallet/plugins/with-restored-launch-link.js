@@ -4,14 +4,14 @@ const MARKER = "restored launch link";
 const ANCHOR = "super.onCreate(null)";
 
 /**
- * Keeps Android from opening an old link again when it restores the app.
+ * Keeps Android from opening an old link again when it brings the app back.
  *
- * Once the system has stopped the app in the background, returning to it
- * recreates the activity with the intent that first started it, link
- * included, whether the return comes from Recents or from the launcher. That
- * link was read by the process that saved the activity, so it is dropped
- * before the link module reads the intent. A link that brings the app back
- * arrives as a new intent and is not affected.
+ * An activity recreated from saved state after the system stopped the app, or
+ * started from Recents even after a restart, is handed the intent its task
+ * first started with, link included. That link belongs to an earlier visit, so
+ * it is dropped before the link module reads the intent. A link that brings
+ * the app back arrives as a new intent and is not affected. The cost is a link
+ * the app had no time to show before it was stopped: it has to be opened again.
  */
 function withRestoredLaunchLink(config) {
   return withMainActivity(config, (activity) => {
@@ -28,8 +28,10 @@ function withRestoredLaunchLink(config) {
     const lineStart = contents.lastIndexOf("\n", anchor) + 1;
     const indent = contents.slice(lineStart, anchor);
     const inserted =
-      `${indent}// ${MARKER}: already read before the system stopped the app.\n` +
-      `${indent}if (savedInstanceState != null) intent.data = null\n`;
+      `${indent}// ${MARKER}: a recreated or Recents start still carries its first link.\n` +
+      `${indent}val restored = savedInstanceState != null ||\n` +
+      `${indent}  (intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0\n` +
+      `${indent}if (restored) intent.data = null\n`;
     activity.modResults.contents =
       contents.slice(0, lineStart) + inserted + contents.slice(lineStart);
     return activity;

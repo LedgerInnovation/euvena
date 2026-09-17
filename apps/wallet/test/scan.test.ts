@@ -203,7 +203,7 @@ describe("openedRequestStep never swaps what the payer is looking at", () => {
     expect(openedRequestStep(read(first.payload), read(second.payload))).toBe("hold");
   });
 
-  it("holds a rejection back while a review is on screen, and the other way round", () => {
+  it("holds a rejection back while a review is on screen and the other way round", () => {
     expect(openedRequestStep(read(first.payload), damaged)).toBe("hold");
     expect(openedRequestStep(damaged, read(first.payload))).toBe("hold");
   });

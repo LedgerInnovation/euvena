@@ -61,7 +61,7 @@ wallet never emits an unescaped one and a remittance line may legitimately conta
 that message apps like to split off the end of a link is kept inside escapes, so a link that does
 get clipped reads as damaged instead of decoding to an altered request.
 
-`euvena` is the app's only URI scheme. This is a deliberate breaking migration: links shared
+`euvena` is the only link scheme the app reads. This is a deliberate breaking migration: links shared
 under the pre-rename `eupi` scheme are refused, so that the app registers no scheme for them and
 the parser accepts exactly one. A pasted pre-rename link gets a message saying to ask for a fresh
 link or code. Its payload is never decoded.
@@ -77,14 +77,17 @@ review even on a first run, because paying someone needs no payee settings.
 
 A request that is already on screen is never replaced in place. If another link arrives while
 the payer is looking at one, the screen keeps it and says that a new request is waiting. The new
-one appears only when the payer asks for it. Opening the same request again changes nothing.
+one appears only when the payer asks for it. Opening the same request again changes nothing. A
+review that has just appeared ignores presses on its handoff actions for half a second, so a tap
+meant for the screen it replaced cannot act on it.
 
 Links are read through `expo-linking`, whose native side keeps the latest link even when it
 arrives before the JavaScript side is listening, such as a link that restarts the app after
 Android stopped it in the background. The app clears that link once it has read it, so a
 remounted app does not open it again. For the same reason, the config plugin in `plugins/` makes
-a restored Android activity drop the link it was first started with: that link was already read
-before the system stopped the app.
+Android drop the link a task first started with whenever it recreates the app from saved state or
+starts it from Recents, since that link belongs to an earlier visit. A link the app had no time to
+show before the system stopped it is dropped as well and has to be opened again.
 
 Only URLs in the wallet's own scheme are read. That check is made in the app rather than left to
 the system: any Android app can address the app directly with a URL of its choosing, while an

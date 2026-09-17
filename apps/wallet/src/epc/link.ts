@@ -40,7 +40,7 @@ const NOT_A_REQUEST_LINK = `not a ${REQUEST_LINK_SCHEME}://${REQUEST_LINK_ACTION
 
 /**
  * Scheme the wallet emitted before it was renamed to Euvena, retired on
- * purpose so exactly one scheme is registered with the operating system and
+ * purpose so that the app registers no link scheme for it and exactly one is
  * accepted here. A retired link is still recognised, but only to say what
  * happened and what to do: its payload is never decoded.
  */

@@ -1,5 +1,14 @@
-import { useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  AccessibilityInfo,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
 import { type EpcQrData } from "@euvena/qr";
@@ -13,6 +22,12 @@ import {
   type OpenedRequest,
   type ReadRequestResult,
 } from "../epc/scan";
+
+const WAITING_NOTICE =
+  "Another request was opened. The one below is still the one you were looking at.";
+
+/** How long a newly shown review ignores presses on its handoff actions. */
+const ARM_DELAY_MS = 500;
 
 interface ScanScreenProps {
   /** The latest request the app was opened with. It can change while the screen is open. */
@@ -37,19 +52,31 @@ export function ScanScreen({ opened, onBack }: ScanScreenProps) {
   // The last opened request this screen has dealt with, whether it showed it,
   // found it identical to what was shown or the payer moved past it.
   const [handledId, setHandledId] = useState<number | null>(opened?.id ?? null);
+  // The opened request on screen, which keys the review. Unlike handledId it
+  // stays put when the same request is opened again, so nothing resets.
+  const [shownId, setShownId] = useState<number | null>(opened?.id ?? null);
 
   const unhandled = opened !== null && opened.id !== handledId ? opened : null;
   const step = unhandled === null ? null : openedRequestStep(result, unhandled.result);
   if (unhandled !== null && step !== "hold") {
     // Adjusted during render, React's pattern for state that follows a prop.
     setHandledId(unhandled.id);
-    if (step === "show") setResult(unhandled.result);
+    if (step === "show") {
+      setResult(unhandled.result);
+      setShownId(unhandled.id);
+    }
   }
   const waiting = step === "hold" ? unhandled : null;
+
+  const waitingId = waiting?.id ?? null;
+  useEffect(() => {
+    if (waitingId !== null) AccessibilityInfo.announceForAccessibility(WAITING_NOTICE);
+  }, [waitingId]);
 
   const show = (next: OpenedRequest) => {
     setResult(next.result);
     setHandledId(next.id);
+    setShownId(next.id);
   };
   // Reading another moves past any request still waiting, so the camera opens
   // as asked instead of the waiting request appearing in its place.
@@ -73,9 +100,7 @@ export function ScanScreen({ opened, onBack }: ScanScreenProps) {
 
       {waiting === null ? null : (
         <View style={styles.waiting}>
-          <Text style={styles.issue} accessibilityLiveRegion="polite">
-            Another request was opened. The one below is still the one you were looking at.
-          </Text>
+          <Text style={styles.issue}>{WAITING_NOTICE}</Text>
           <Pressable onPress={() => show(waiting)} accessibilityRole="button" style={styles.secondary}>
             <Text style={styles.secondaryLabel}>Show the new request</Text>
           </Pressable>
@@ -92,7 +117,7 @@ export function ScanScreen({ opened, onBack }: ScanScreenProps) {
       ) : result.ok ? (
         // Keyed so a request shown in place of another starts with fresh
         // handoff state rather than the previous one's copy markers.
-        <ReviewPanel key={handledId ?? "read"} data={result.data} onReset={reset} />
+        <ReviewPanel key={shownId ?? "read"} data={result.data} onReset={reset} />
       ) : (
         <RejectionPanel reason={result.reason} onReset={reset} />
       )}
@@ -221,8 +246,18 @@ function HandoffActions({ data }: { data: EpcQrData }) {
   const [opening, setOpening] = useState(false);
   const [noHandler, setNoHandler] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    // A review can appear under a finger that was headed for something else,
+    // such as when a link opens while the camera is showing. Its actions
+    // ignore presses until it has been on screen for a moment.
+    const timer = setTimeout(() => setArmed(true), ARM_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   const onOpen = async () => {
+    if (!armed) return;
     setOpening(true);
     setNoHandler(false);
     try {
@@ -236,6 +271,7 @@ function HandoffActions({ data }: { data: EpcQrData }) {
   };
 
   const onCopy = async (field: HandoffField) => {
+    if (!armed) return;
     try {
       await Clipboard.setStringAsync(field.value);
       setCopied(field.label);

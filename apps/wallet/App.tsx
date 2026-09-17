@@ -26,9 +26,9 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    // Once a link is on screen, the settings read below must not send the user
-    // away from it.
-    let linkShown = false;
+    // The settings read below only redirects from the start screen, so a link
+    // that is already on screen keeps it.
+    const leaveStart = () => setScreen((current) => (current === "request" ? "payee" : current));
 
     const openLink = (url: string | null) => {
       const result = readOpenedLink(url);
@@ -36,7 +36,6 @@ export default function App() {
       // The native side keeps the latest link until it is cleared. Clearing it
       // once it is read keeps a remounted app from opening it a second time.
       Linking.clearInitialURL();
-      linkShown = true;
       arrivals.current += 1;
       setOpened({ id: arrivals.current, result });
       setScreen("scan");
@@ -58,7 +57,7 @@ export default function App() {
         if (cancelled) return;
         setPayee(stored);
         // A first run has nothing to build a code from, so start in settings.
-        if (stored.iban === "" && !linkShown) setScreen("payee");
+        if (stored.iban === "") leaveStart();
       })
       .catch(() => {
         if (cancelled) return;
@@ -66,7 +65,7 @@ export default function App() {
         // never set, so send the user to the form and say why it is empty
         // rather than presenting the failure as a first run.
         setLoadFailed(true);
-        if (!linkShown) setScreen("payee");
+        leaveStart();
       })
       .finally(() => {
         // Runs on both paths: a rejected read must not strand the spinner.

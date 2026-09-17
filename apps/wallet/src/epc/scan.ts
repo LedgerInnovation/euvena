@@ -94,10 +94,10 @@ export function readPastedRequest(input: string): ReadRequestResult {
  * Reads a URL the operating system opened the app with, at launch or while it
  * runs. Returns null when there is nothing to show.
  *
- * Only the wallet's own scheme is read, and this check is what decides it:
- * registering a scheme does not stop other URLs from arriving. Any Android app
+ * Only the wallet's own scheme is read. This check is what decides it, since
+ * registering a scheme does not stop other URLs from arriving: any Android app
  * can address the app directly with a URL of its choosing, an iOS build also
- * answers to its bundle identifier, and a development host launches the app
+ * answers to its bundle identifier and a development host launches the app
  * with a URL of its own (Expo Go uses exp://), which is not a failed request.
  * Everything in the wallet's scheme goes to parseRequestLink, the parser a
  * pasted link reaches, so a link that is ours but malformed ends as a
