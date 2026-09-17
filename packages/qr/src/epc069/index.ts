@@ -25,7 +25,13 @@
  */
 
 import { isNonEeaSepaIban, isValidIban, isValidRfReference, normalizeIban } from "../shared/iban.js";
-import { byteLength, hasControlChars, isLatin1, type EpcCharset } from "../shared/text.js";
+import {
+  byteLength,
+  hasControlChars,
+  hasVisibleText,
+  isLatin1,
+  type EpcCharset,
+} from "../shared/text.js";
 import { formatAmount, isValidAmountString } from "../shared/amount.js";
 
 export const EPC069_MAX_BYTES = 331;
@@ -125,8 +131,11 @@ function collectIssues(data: EpcQrData): EpcQrIssue[] {
     });
   }
 
-  if (!data.name || data.name.length > 70) {
-    issues.push({ element: "name", message: "beneficiary name is mandatory, 1..70 characters" });
+  if (!data.name || !hasVisibleText(data.name) || data.name.length > 70) {
+    issues.push({
+      element: "name",
+      message: "beneficiary name is mandatory, 1..70 characters of which at least one is visible",
+    });
   }
 
   if (!isValidIban(data.iban)) {

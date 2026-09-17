@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_KEYS,
   EpcQrError,
   isNonEeaSepaIban,
   MsctQrError,
@@ -76,6 +77,74 @@ describe("EPC069 invisible formatting characters", () => {
   });
 });
 
+describe("interlinear annotation marks", () => {
+  it("rejects them in every free-text element, alone or inside a value", () => {
+    // A display that honours them shows "Alice" for a name that carries more.
+    const base = { name: "Alice", iban: "BE72000000001616" } as const;
+    for (const mark of ["\uFFF9", "\uFFFA", "\uFFFB"]) {
+      expect(() => encodeEpcQr({ ...base, name: mark })).toThrow(EpcQrError);
+      expect(() => encodeEpcQr({ ...base, text: `pay${mark}now` })).toThrow(EpcQrError);
+    }
+    expect(() =>
+      encodeEpcQr({ ...base, name: "\uFFF9Alice\uFFFAEvil Corp\uFFFB" }),
+    ).toThrow(EpcQrError);
+    const payload = ["BCD", "002", "1", "SCT", "", "\uFFF9Alice\uFFFAEvil\uFFFB", base.iban].join("\n");
+    expect(() => decodeEpcQr(payload)).toThrow(EpcQrError);
+  });
+
+  it("leaves the code points on either side alone", () => {
+    for (const name of ["\uFFFC", "\uFFFD", "Al\uFFFCice"]) {
+      expect(() => encodeEpcQr({ name, iban: "BE72000000001616" })).not.toThrow();
+    }
+  });
+});
+
+describe("lone surrogates", () => {
+  // Half a surrogate pair is not a character. UTF-8 has no bytes for it, so
+  // the code would carry U+FFFD instead of what the caller passed.
+  const lone = ["\uD800", "\uDB40", "\uDC00", "\uDFFF"];
+
+  it("rejects them in every free-text element of EPC069-12", () => {
+    const base = { name: "Alice", iban: "BE72000000001616" } as const;
+    for (const half of lone) {
+      expect(() => encodeEpcQr({ ...base, name: half })).toThrow(EpcQrError);
+      expect(() => encodeEpcQr({ ...base, name: `Alice${half}Bob` })).toThrow(EpcQrError);
+      expect(() => encodeEpcQr({ ...base, text: `pay${half}now` })).toThrow(EpcQrError);
+      expect(() => encodeEpcQr({ ...base, information: `note${half}` })).toThrow(EpcQrError);
+      const payload = ["BCD", "002", "1", "SCT", "", `Alice${half}`, "BE72000000001616"].join("\n");
+      expect(() => decodeEpcQr(payload)).toThrow(EpcQrError);
+    }
+  });
+
+  it("rejects a pair in the wrong order", () => {
+    expect(() => encodeEpcQr({ name: "Al\uDE00\uD83Dice", iban: "BE72000000001616" })).toThrow(
+      EpcQrError,
+    );
+  });
+
+  it("refuses them for an MSCT payee instead of writing U+FFFD into the URL", () => {
+    for (const half of lone) {
+      expect(() =>
+        encodeMsctPayeeClear({
+          ...COMMON,
+          context: "p",
+          name: `Alice${half}`,
+          iban: "BE72000000001616",
+          instrument: "INST",
+          amount: "1",
+        }),
+      ).toThrow(MsctQrError);
+    }
+  });
+
+  it("still accepts well-formed pairs", () => {
+    for (const name of ["\u{1F600}", "Alice \u{1F600}", "\u{20BB7}\u91CE\u5BB6"]) {
+      const payload = encodeEpcQr({ name, iban: "BE72000000001616" });
+      expect(decodeEpcQr(payload).data.name).toBe(name);
+    }
+  });
+});
+
 describe("EPC069 structural strictness", () => {
   it("rejects charset segments that are not exactly one digit", () => {
     for (const charset of ["01", " 1", "1.0", "1e0", "+1", ""]) {
@@ -102,6 +171,93 @@ describe("EPC069 structural strictness", () => {
     ).not.toThrow();
     // EEA beneficiaries remain fine without one.
     expect(() => encodeEpcQr({ name: "Alice", iban: "BE72000000001616" })).not.toThrow();
+  });
+});
+
+describe("blank beneficiary names", () => {
+  // Each of these renders as an empty or invisible name, so a review would
+  // show a payment to nobody in particular.
+  const blanks = [
+    " ",
+    "\u00A0",
+    "\u3000",
+    "\uFEFF",
+    "\u200B",
+    "\u2060",
+    "\u200C\u200D",
+    "\u00AD",
+    "\u3164",
+    "\u115F",
+    "\u2800",
+    "\uFE0F",
+    "\u180E",
+    "\u{E0020}",
+    "\u{1BCA0}",
+    "\u{1D173}",
+    "\uFFF0",
+    "\uFFF8",
+    "\u{13430}",
+    "\u{1343F}",
+    " \u200B\uFEFF\u200B ",
+  ];
+
+  it("rejects them when encoding and decoding EPC069-12", () => {
+    for (const name of blanks) {
+      expect(() => encodeEpcQr({ name, iban: "BE72000000001616" })).toThrow(EpcQrError);
+      const payload = ["BCD", "002", "1", "SCT", "", name, "BE72000000001616"].join("\n");
+      expect(() => decodeEpcQr(payload)).toThrow(EpcQrError);
+    }
+  });
+
+  const payeeUrl = (name: string) =>
+    encodeMsctPayeeClear({
+      ...COMMON,
+      context: "p",
+      name,
+      iban: "BE72000000001616",
+      instrument: "INST",
+      amount: "1",
+    });
+
+  it("rejects them for an MSCT payee", () => {
+    // The same payee with a real name encodes, so the rejection is the name's.
+    expect(() => payeeUrl("Alice")).not.toThrow();
+    for (const name of blanks) {
+      expect(() => payeeUrl(name)).toThrow(MsctQrError);
+    }
+  });
+
+  it("rejects them when decoding an MSCT payee", () => {
+    const valid = new URL(payeeUrl("Alice"));
+    expect(() => decodeMsctQr(valid.toString())).not.toThrow();
+    for (const name of blanks) {
+      const url = new URL(valid.toString());
+      url.searchParams.set(DEFAULT_KEYS.name, name);
+      expect(() => decodeMsctQr(url.toString())).toThrow(MsctQrError);
+    }
+  });
+
+  it("reports a missing name as a validation issue, not a crash", () => {
+    // Plain JavaScript callers can pass form data without a name.
+    const input = { iban: "BE72000000001616" } as unknown as Parameters<typeof encodeEpcQr>[0];
+    expect(() => encodeEpcQr(input)).toThrow(EpcQrError);
+  });
+
+  it("still accepts a name that shows something", () => {
+    // The last four sit one step outside a refused range.
+    for (const name of [
+      "A",
+      " Alice ",
+      "Ali\u00ADce",
+      "\u00C9mile",
+      "\u6771\u4EAC",
+      "\uFFFC",
+      "\u{1342F}",
+      "\u{13440}",
+      "\u{13441}",
+    ]) {
+      expect(() => encodeEpcQr({ name, iban: "BE72000000001616" })).not.toThrow();
+    }
   });
 });
 

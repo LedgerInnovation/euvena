@@ -11,9 +11,9 @@ no accounts and no backend.
 
 The request flow is implemented. Enter an amount and remittance information to get an EPC069-12
 code with the decoded values printed beside it, and share that request through the share sheet of
-the operating system. On the paying side the app scans a code, reads a pasted request or opens a
-shared link, shows what the request says and then hands it to a banking app. EN 18184 codes are
-not supported yet; see the checklist on the tracking issue.
+the operating system. On the paying side the app scans a code, reads a pasted request (including a
+payto link) or opens a shared link, shows what the request says and then hands it to a banking
+app. EN 18184 codes are not supported yet; see the checklist on the tracking issue.
 
 ## The request flow
 
@@ -61,10 +61,10 @@ wallet never emits an unescaped one and a remittance line may legitimately conta
 that message apps like to split off the end of a link is kept inside escapes, so a link that does
 get clipped reads as damaged instead of decoding to an altered request.
 
-`euvena` is the only link scheme the app reads. This is a deliberate breaking migration: links shared
-under the pre-rename `eupi` scheme are refused, so that the app registers no scheme for them and
-the parser accepts exactly one. A pasted pre-rename link gets a message saying to ask for a fresh
-link or code. Its payload is never decoded.
+`euvena` is the only link scheme the app reads. This is a deliberate breaking migration: links
+shared under the pre-rename `eupi` scheme are refused, so that the app registers no scheme for them
+and the parser accepts exactly one. A pasted pre-rename link gets a message saying to ask for a
+fresh link or code. Its payload is never decoded.
 
 ## Opening a shared link
 
@@ -101,6 +101,47 @@ adb shell "am start -a android.intent.action.VIEW -d 'euvena://request?epc=BCD%0
 ```
 
 The paste entry reads the same links through the same parser and works in Expo Go.
+
+## Reading a payto link
+
+A scanned code or pasted text may also hold an [RFC 8905](https://www.rfc-editor.org/rfc/rfc8905)
+payto URI for a SEPA account, the same form the handoff emits:
+
+```
+payto://iban/[BIC/]IBAN?receiver-name=...&amount=EUR:12.30&message=...
+```
+
+The link is turned into the EPC069-12 payload of the same request and read back through the
+decoder in strict mode, so the review shows exactly what an equivalent code would carry. Every
+option lands in an element the review shows or makes the link fail, except three that describe
+the parties rather than the payment, which are ignored.
+
+| Option | Handling |
+| --- | --- |
+| `receiver-name` | Beneficiary name, required because a code requires one. A name that shows nothing fails, as it does in a code |
+| `amount` | Euro only and at most once. Digits past the cent must be zeros, since rounding would change what is paid. Commas are refused although the RFC says to ignore them, because a producer writing a decimal comma would have `12,50` paid as 1250 |
+| `message` | Unstructured remittance text (RFC 8905 section 7.3), never the structured reference |
+| `instruction` | Refused. It is the end-to-end identifier, which neither a code nor the handoff can carry. The RFC says to refuse rather than lose it |
+| `sender-name` | Ignored, since it names the payer |
+| `receiver-postal-code`, `receiver-town` | Ignored. The GNU Taler wallets add the creditor address, which neither a code nor a transfer form takes |
+| anything else | Refused, as is any option given twice. That includes `ch-qrr` (a Swiss structured reference) and a `bic` option that would compete with the path |
+
+The scheme, the target type and the currency are compared without case. Option names are matched
+exactly, as the GNU Taler wallet matches them, although RFC 5234 would make them case-insensitive:
+`AMOUNT` is refused instead of being honoured here and skipped there. A raw `+` in a value is read
+as a space, as that wallet reads it and as common query builders write one. A literal plus has to
+arrive as `%2B`, which is what the handoff emits; a producer that leaves it raw loses it. The IBAN
+and BIC must be plain letters and digits. One trailing slash after the account is accepted, since
+Taler exchanges publish their accounts that way. Other target types, userinfo, a port, a fragment or
+further path segments make the link fail.
+
+A link has no size limit, but a code holds 331 bytes. A name and a text that each pass and do not
+fit a code together make the link fail, with a message that says it carries more text than a code
+can hold.
+
+The app does not register `payto` with the operating system, so a tapped payto link does not
+open it. The handoff itself opens a payto URI, so a wallet registered for the scheme would be
+offered its own handoff.
 
 ## Running it
 
