@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/euvena.svg" alt="Euvena logo" width="120"></p>
+
 # Euvena
 
 **Open-source building blocks for instant payments in Europe.**
