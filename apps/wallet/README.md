@@ -17,6 +17,21 @@ app. The screens follow the system appearance, light or dark, and a native build
 on a splash screen while the settings are read. EN 18184 codes are not supported yet; see the
 checklist on the tracking issue.
 
+## Keeping a request
+
+A request is kept in an on-device history when it is shared (on Android, when the share sheet is
+opened, since the system does not report whether a destination was picked), or when the Keep
+action is pressed without sharing. The history stores the payload and when it was built, nothing else, and shows an
+entry by decoding its payload again through the same strict reader a scanned code goes through. A
+kept request can be opened as the same code and share action it had when it was built, so what is
+re-shared later is exactly what was shown at the time.
+
+An entry can be marked done or stale by hand and is shown struck through. The wallet cannot know
+whether a request was ever paid, so the mark is the payee's own bookkeeping, never a payment
+status. The newest 200 entries are kept; sharing the same request twice in a row keeps one entry.
+A stored history that cannot be read is left in place: nothing is kept or marked until the app
+restarts, so a failed read never turns into a lost list.
+
 ## The request flow
 
 Payee name, IBAN and optional BIC are settings on the device. There is no account to register and
@@ -178,7 +193,7 @@ pnpm --filter @euvena/wallet build   # bundles the JS, no native toolchain requi
 | `plugins/` | Config plugin that keeps a restored Android activity from reopening its launch link |
 | `src/epc/` | Form state to EPC069-12 payload, the link form of a request, plus the display formatting |
 | `src/qr/` | QR symbol construction and its SVG path |
-| `src/settings/` | Payee settings, on-device only |
+| `src/settings/` | Payee settings and the request history, on-device only |
 | `src/ui/` | Screens, the building blocks they share (`kit.tsx`), the palette for both appearances (`theme.ts`) and the QR view |
 | `metro.config.js` | Workspace-aware resolver so `packages/*` resolve and hot-reload |
 | `test/` | Plain-TypeScript tests; the React Native surface is covered by typecheck and lint |
