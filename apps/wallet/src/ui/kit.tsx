@@ -308,8 +308,11 @@ export interface RowItem {
   singleLine?: boolean;
 }
 
-/** Label and value pairs, one per line, divided by hairlines. */
-export function Rows({ rows }: { rows: RowItem[] }) {
+/**
+ * Label and value pairs, one per line, divided by hairlines. Struck rows show a
+ * request marked done or stale.
+ */
+export function Rows({ rows, struck = false }: { rows: RowItem[]; struck?: boolean }) {
   const theme = useTheme();
   return (
     <View>
@@ -323,7 +326,11 @@ export function Rows({ rows }: { rows: RowItem[] }) {
         >
           <Text style={[styles.rowLabel, { color: theme.muted }]}>{row.label}</Text>
           <Text
-            style={[styles.rowValue, { color: theme.text }]}
+            style={[
+              styles.rowValue,
+              { color: struck ? theme.muted : theme.text },
+              struck ? styles.struck : null,
+            ]}
             {...(row.singleLine ? { numberOfLines: 1 } : {})}
           >
             {row.value}
@@ -491,6 +498,9 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: "500",
+  },
+  struck: {
+    textDecorationLine: "line-through",
   },
   textAction: {
     fontSize: 14,

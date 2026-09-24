@@ -1,24 +1,16 @@
-import { useCallback, useMemo, useState } from "react";
-import { Share, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { EPC069_MAX_BYTES, byteLength, type EpcQrData } from "@euvena/qr";
+import { useMemo, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 
-import { buildShareMessage } from "../epc/link";
 import {
   EMPTY_FORM,
   buildPaymentRequest,
   formatIbanForDisplay,
-  summarizeRequest,
   validatePayee,
   type Payee,
   type RemittanceKind,
   type RequestForm,
 } from "../epc/request";
-import {
-  EPC069_ERROR_CORRECTION,
-  EPC069_MAX_VERSION,
-  toQrSymbol,
-  type QrSymbol,
-} from "../qr/symbol";
+import { ComposedRequest } from "./ComposedRequest";
 import {
   Button,
   Card,
@@ -28,19 +20,20 @@ import {
   Hint,
   Input,
   Problem,
-  Rows,
   Screen,
   Segmented,
   SectionLabel,
   TextAction,
 } from "./kit";
-import { QrCode } from "./QrCode";
 import { useTheme } from "./theme";
 
 interface RequestScreenProps {
   payee: Payee;
   onEditPayee: () => void;
   onScan: () => void;
+  onHistory: () => void;
+  /** Keeps a composed request in the history. Rejects when it could not be written. */
+  onKeep: (payload: string) => Promise<void>;
 }
 
 const REMITTANCE_KINDS: {
@@ -67,23 +60,6 @@ const REMITTANCE_KINDS: {
 const PAYEE_ELEMENTS: ReadonlySet<string> = new Set(["name", "iban", "bic"]);
 
 /**
- * Subject offered to destinations that have one, such as mail. Android reads
- * it from the content title and iOS from the subject option, so the share
- * call passes it as both.
- */
-const SHARE_TITLE = "Payment request";
-
-type SymbolResult = { symbol: QrSymbol } | { error: string };
-
-function buildSymbol(payload: string): SymbolResult {
-  try {
-    return { symbol: toQrSymbol(payload) };
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "the code could not be rendered" };
-  }
-}
-
-/**
  * Composes a payment request and renders it as an EPC069-12 QR code.
  *
  * The values printed below the code are decoded back out of the payload rather
@@ -91,9 +67,14 @@ function buildSymbol(payload: string): SymbolResult {
  * guidelines recommend showing them in an invoice-style presentation next to
  * the code, which also gives the payer a way to check the code before scanning.
  */
-export function RequestScreen({ payee, onEditPayee, onScan }: RequestScreenProps) {
+export function RequestScreen({
+  payee,
+  onEditPayee,
+  onScan,
+  onHistory,
+  onKeep,
+}: RequestScreenProps) {
   const [form, setForm] = useState<RequestForm>(EMPTY_FORM);
-  const { width } = useWindowDimensions();
   const theme = useTheme();
 
   const payeeIssues = validatePayee(payee);
@@ -103,10 +84,6 @@ export function RequestScreen({ payee, onEditPayee, onScan }: RequestScreenProps
   // name, not a first run.
   const payeeEmpty = payee.name === "" && payee.iban === "";
   const request = useMemo(() => buildPaymentRequest(payee, form), [payee, form]);
-  const rendered = useMemo(
-    () => (request.ok ? buildSymbol(request.payload) : undefined),
-    [request],
-  );
   // Payee problems are what the set-up card is for, so only form problems are
   // listed under the form.
   const formIssues = request.ok
@@ -114,11 +91,10 @@ export function RequestScreen({ payee, onEditPayee, onScan }: RequestScreenProps
     : request.issues.filter((issue) => !PAYEE_ELEMENTS.has(issue.element));
 
   const remittanceKind = REMITTANCE_KINDS.find((entry) => entry.key === form.remittanceKind);
-  const codeSize = Math.min(width - 104, 280);
 
   return (
     <Screen>
-      <Header title="Request money" />
+      <Header title="Request money" action={{ label: "History", onPress: onHistory }} />
 
       {payeeReady ? (
         <Card>
@@ -192,22 +168,8 @@ export function RequestScreen({ payee, onEditPayee, onScan }: RequestScreenProps
         )}
       </Card>
 
-      {request.ok && rendered !== undefined ? (
-        "error" in rendered ? (
-          <Card tone="danger">
-            <Problem>{rendered.error}</Problem>
-          </Card>
-        ) : (
-          <>
-            <QrCodeCard symbol={rendered.symbol} size={codeSize} />
-            <Card>
-              <DecodedSummary payload={request.payload} data={request.data} />
-              {/* Keyed on the payload so an error from one request is not left
-                  standing over the next one. */}
-              <ShareRequest key={request.payload} payload={request.payload} data={request.data} />
-            </Card>
-          </>
-        )
+      {request.ok ? (
+        <ComposedRequest payload={request.payload} data={request.data} onKeep={onKeep} />
       ) : null}
 
       <Card tone="soft">
@@ -254,89 +216,6 @@ function AmountInput({
   );
 }
 
-/**
- * The code on a light card in both appearances: the symbol is dark modules on
- * a light ground, and a scanner needs that contrast more than the page needs
- * a matching card.
- */
-function QrCodeCard({ symbol, size }: { symbol: QrSymbol; size: number }) {
-  return (
-    <View style={styles.codeCard}>
-      <QrCode symbol={symbol} size={size} />
-      <Text style={styles.codeCaption}>
-        EPC QR, version {symbol.version} of {EPC069_MAX_VERSION}, error correction{" "}
-        {EPC069_ERROR_CORRECTION}
-      </Text>
-    </View>
-  );
-}
-
-/**
- * Hands the request to the share sheet of the operating system.
- *
- * What leaves the device is the link form of the payload the code carries,
- * with the decoded values above it so the message reads on its own. The wallet
- * sends nothing itself: the share sheet belongs to the system and the
- * destination is the user's choice.
- */
-function ShareRequest({ payload, data }: { payload: string; data: EpcQrData }) {
-  const [sharing, setSharing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const onShare = useCallback(async () => {
-    setSharing(true);
-    setError(null);
-    try {
-      await Share.share(
-        { title: SHARE_TITLE, message: buildShareMessage(data, payload) },
-        { subject: SHARE_TITLE },
-      );
-    } catch (cause) {
-      // Android settles the promise as soon as the sheet is launched; iOS
-      // settles it when the sheet closes, and a destination that fails after
-      // being picked arrives here too. Whatever the platform reports is worth
-      // saying out loud.
-      setError(cause instanceof Error ? cause.message : "the request could not be shared");
-    } finally {
-      setSharing(false);
-    }
-  }, [payload, data]);
-
-  return (
-    <View style={styles.share}>
-      <Button
-        label="Share this request"
-        busy={sharing}
-        onPress={() => {
-          void onShare();
-        }}
-      />
-      <Hint>
-        The link carries the same payload as the code, so a payer who opens it reads the request
-        the code holds. Nothing is resolved over the network.
-      </Hint>
-      {error === null ? null : <Problem>{error}</Problem>}
-    </View>
-  );
-}
-
-/**
- * The decoded payload, in the invoice-style presentation the guidelines
- * recommend printing beside the code.
- */
-function DecodedSummary({ payload, data }: { payload: string; data: EpcQrData }) {
-  return (
-    <View style={styles.summary}>
-      <SectionLabel>What the code says</SectionLabel>
-      <Rows rows={summarizeRequest(data)} />
-      <Hint>
-        EPC069-12 version {data.version}, UTF-8, {byteLength(payload, data.charset)} of{" "}
-        {EPC069_MAX_BYTES} bytes.
-      </Hint>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   payeeRow: {
     flexDirection: "row",
@@ -368,22 +247,5 @@ const styles = StyleSheet.create({
   },
   issues: {
     gap: 4,
-  },
-  codeCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    alignItems: "center",
-    gap: 10,
-  },
-  codeCaption: {
-    fontSize: 12,
-    color: "#5A6A82",
-  },
-  summary: {
-    gap: 8,
-  },
-  share: {
-    gap: 10,
   },
 });
