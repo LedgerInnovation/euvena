@@ -35,8 +35,12 @@ restarts, so a failed read never turns into a lost list.
 ## The request flow
 
 Payee name, IBAN and optional BIC are settings on the device. There is no account to register and
-no interface is called to verify them. The first run opens the settings screen because a code
-cannot be built without an IBAN.
+no interface is called to verify them. The first run opens the payee form because a code cannot be
+built without an IBAN. The device can hold up to 20 payees, one of them active: requests are built
+for the active one, and the request screen names it and offers switching before composing. A payee
+just saved becomes the active one. Each payee passes the same encoder-backed validation, so a payee
+that saved always encodes. Settings written by an earlier version, which held a single payee, are
+read as a book of one.
 
 The amount is optional. Leaving it empty omits element 8 of the payload, which lets the payer
 enter the amount in their own banking app. Remittance information goes into either the structured
