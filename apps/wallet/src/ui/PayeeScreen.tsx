@@ -1,18 +1,28 @@
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 
-import { formatIbanForDisplay, normalizePayee, validatePayee, type Payee } from "../epc/request";
+import {
+  EMPTY_PAYEE,
+  formatIbanForDisplay,
+  normalizePayee,
+  validatePayee,
+  type Payee,
+} from "../epc/request";
 import { Button, Card, Field, Header, Hint, Input, Problem, Screen } from "./kit";
 
 interface PayeeScreenProps {
-  payee: Payee;
+  /** The payee being edited, or none for a new one. */
+  payee?: Payee | undefined;
   /** Rejects when the settings could not be written to the device. */
   onSave: (payee: Payee) => Promise<void>;
+  /** Drops the payee being edited. Absent for a new one. Rejects on a failed write. */
+  onRemove?: (() => Promise<void>) | undefined;
   onCancel: () => void;
   notice?: string | null;
 }
 
 const SAVE_FAILED = "Settings could not be saved to this device. Nothing was stored.";
+const REMOVE_FAILED = "The payee could not be removed from this device.";
 
 /**
  * Edits the beneficiary details the request codes are built from.
@@ -20,10 +30,19 @@ const SAVE_FAILED = "Settings could not be saved to this device. Nothing was sto
  * These are settings on the device, not an account: nothing is registered
  * anywhere and no interface is called to verify them.
  */
-export function PayeeScreen({ payee, onSave, onCancel, notice = null }: PayeeScreenProps) {
-  const [draft, setDraft] = useState<Payee>(payee);
+export function PayeeScreen({
+  payee,
+  onSave,
+  onRemove,
+  onCancel,
+  notice = null,
+}: PayeeScreenProps) {
+  const [draft, setDraft] = useState<Payee>(payee ?? EMPTY_PAYEE);
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removeFailed, setRemoveFailed] = useState(false);
+  const busy = saving || removing;
 
   // The encoder decides what can be saved, so nothing that saves can fail to
   // encode on the request screen. Empty fields disable Save without shouting.
@@ -48,12 +67,33 @@ export function PayeeScreen({ payee, onSave, onCancel, notice = null }: PayeeScr
     }
   };
 
+  const remove = async () => {
+    if (onRemove === undefined) return;
+    // An IBAN typed by hand has no backup, so removal asks first.
+    const confirmed = await new Promise<boolean>((resolve) =>
+      Alert.alert("Remove this payee?", "Its name and IBAN are not kept anywhere else.", [
+        { text: "Keep", style: "cancel", onPress: () => resolve(false) },
+        { text: "Remove", style: "destructive", onPress: () => resolve(true) },
+      ]),
+    );
+    if (!confirmed) return;
+    setRemoving(true);
+    setRemoveFailed(false);
+    try {
+      await onRemove();
+    } catch {
+      setRemoveFailed(true);
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   return (
     <Screen>
       <Header
-        title="Payee settings"
+        title={payee === undefined ? "Add a payee" : "Edit payee"}
         subtitle="Held on this device only. The wallet has no accounts and no backend and never routes funds."
-        action={{ label: "Cancel", onPress: onCancel, disabled: saving }}
+        action={{ label: "Cancel", onPress: onCancel, disabled: busy }}
       />
 
       {notice === null ? null : (
@@ -112,13 +152,27 @@ export function PayeeScreen({ payee, onSave, onCancel, notice = null }: PayeeScr
       <View style={styles.actions}>
         <Button
           label={saving ? "Saving" : "Save"}
-          disabled={!complete}
+          disabled={!complete || removing}
           busy={saving}
           onPress={() => {
             void submit();
           }}
         />
         <Hint center>Nothing is sent anywhere. The details only go into the codes you build.</Hint>
+        {onRemove === undefined ? null : (
+          <>
+            <Button
+              label={removing ? "Removing" : "Remove this payee"}
+              variant="ghost"
+              disabled={saving}
+              busy={removing}
+              onPress={() => {
+                void remove();
+              }}
+            />
+            {removeFailed ? <Problem>{REMOVE_FAILED}</Problem> : null}
+          </>
+        )}
       </View>
     </Screen>
   );

@@ -2,22 +2,22 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { type Payee } from "../epc/request";
 import { parseHistory, serializeHistory, type HistoryEntry } from "./history";
-import { parsePayee, serializePayee } from "./payee";
+import { parsePayeeBook, serializePayeeBook, type PayeeBook } from "./payee";
 
-// Key from before the rename to Euvena: changing it would silently drop the
-// payee saved on existing installs.
+// Key from before the rename to Euvena, and from before the book of payees:
+// changing it would silently drop the payee saved on existing installs. The
+// parser reads the single-payee value those installs hold.
 const PAYEE_KEY = "eupi.payee";
 
 const HISTORY_KEY = "euvena.history";
 
-export async function loadPayee(): Promise<Payee> {
-  return parsePayee(await AsyncStorage.getItem(PAYEE_KEY));
+export async function loadPayeeBook(): Promise<PayeeBook> {
+  return parsePayeeBook(await AsyncStorage.getItem(PAYEE_KEY));
 }
 
-export async function savePayee(payee: Payee): Promise<void> {
-  await AsyncStorage.setItem(PAYEE_KEY, serializePayee(payee));
+export async function savePayeeBook(book: PayeeBook): Promise<void> {
+  await AsyncStorage.setItem(PAYEE_KEY, serializePayeeBook(book));
 }
 
 /** Rejects when a stored history exists but cannot be read as one. */

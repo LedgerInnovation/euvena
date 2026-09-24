@@ -5,17 +5,33 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
-import { EMPTY_PAYEE, type Payee } from "./src/epc/request";
+import { type Payee } from "./src/epc/request";
 import { readOpenedLink, type OpenedRequest } from "./src/epc/scan";
 import { markEntry, rememberRequest, type HistoryEntry } from "./src/settings/history";
-import { loadHistory, loadPayee, saveHistory, savePayee } from "./src/settings/storage";
+import {
+  EMPTY_BOOK,
+  activePayee,
+  removePayeeAt,
+  savePayeeAt,
+  setActivePayee,
+  type PayeeBook,
+} from "./src/settings/payee";
+import { loadHistory, loadPayeeBook, saveHistory, savePayeeBook } from "./src/settings/storage";
+import { useCommittedStore } from "./src/ui/committed";
 import { HistoryScreen } from "./src/ui/HistoryScreen";
 import { PayeeScreen } from "./src/ui/PayeeScreen";
+import { PayeesScreen } from "./src/ui/PayeesScreen";
 import { RequestScreen } from "./src/ui/RequestScreen";
 import { ScanScreen } from "./src/ui/ScanScreen";
 import { useTheme } from "./src/ui/theme";
 
-type Screen = "request" | "payee" | "scan" | "history";
+/** The payee form edits the payee at an index, or a new one when null. */
+type Screen =
+  | { name: "request" }
+  | { name: "payees" }
+  | { name: "payee"; editing: number | null }
+  | { name: "scan" }
+  | { name: "history" };
 
 const READ_FAILED_NOTICE =
   "Saved settings could not be read from this device. Enter them again to build a code.";
@@ -26,29 +42,29 @@ const READ_FAILED_NOTICE =
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 export default function App() {
-  const [payee, setPayee] = useState<Payee>(EMPTY_PAYEE);
+  // Settings the user can retype are written even after a failed read: the
+  // form says to enter them again, and that has to work.
+  const book = useCommittedStore<PayeeBook>(EMPTY_BOOK, savePayeeBook, {
+    writeAfterFailedRead: true,
+  });
+  const history = useCommittedStore<HistoryEntry[]>([], saveHistory);
   const [loaded, setLoaded] = useState(false);
-  const [screen, setScreen] = useState<Screen>("request");
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [screen, setScreen] = useState<Screen>({ name: "request" });
   const [opened, setOpened] = useState<OpenedRequest | null>(null);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [historyLoadFailed, setHistoryLoadFailed] = useState(false);
-  // The committed list and a queue of writes to it. Handlers close over
-  // neither the state nor each other: each write reads the list the previous
-  // write left, so two taps in flight cannot build on the same old list and
-  // lose each other's entry.
-  const committed = useRef<HistoryEntry[]>([]);
-  const writes = useRef<Promise<void>>(Promise.resolve());
-  const readFailed = useRef(false);
   // Outlives a remount of the effect, so arrival numbers never repeat.
   const arrivals = useRef(0);
   const theme = useTheme();
+  const { loaded: bookLoaded, failed: bookFailed, commit: commitBook } = book;
+  const { loaded: historyLoaded, failed: historyFailed, commit: commitHistory } = history;
 
   useEffect(() => {
     let cancelled = false;
     // The settings read below only redirects from the start screen, so a link
     // that is already on screen keeps it.
-    const leaveStart = () => setScreen((current) => (current === "request" ? "payee" : current));
+    const leaveStart = () =>
+      setScreen((current) =>
+        current.name === "request" ? { name: "payee", editing: null } : current,
+      );
 
     const openLink = (url: string | null) => {
       const result = readOpenedLink(url);
@@ -58,7 +74,7 @@ export default function App() {
       Linking.clearInitialURL();
       arrivals.current += 1;
       setOpened({ id: arrivals.current, result });
-      setScreen("scan");
+      setScreen({ name: "scan" });
     };
 
     // Subscribed before the launch link is read, so a link that arrives in
@@ -72,19 +88,19 @@ export default function App() {
     // paying needs no payee.
     openLink(Linking.getLinkingURL());
 
-    const payeeRead = loadPayee()
+    const bookRead = loadPayeeBook()
       .then((stored) => {
         if (cancelled) return;
-        setPayee(stored);
-        // A first run has nothing to build a code from, so start in settings.
-        if (stored.iban === "") leaveStart();
+        bookLoaded(stored);
+        // A first run has nothing to build a code from, so start in the form.
+        if (stored.payees.length === 0) leaveStart();
       })
       .catch(() => {
         if (cancelled) return;
         // Settings that cannot be read are not the same as settings that were
         // never set, so send the user to the form and say why it is empty
         // rather than presenting the failure as a first run.
-        setLoadFailed(true);
+        bookFailed();
         leaveStart();
       });
 
@@ -92,67 +108,71 @@ export default function App() {
     // drops so a kept request is never missing for the first moment.
     const historyRead = loadHistory()
       .then((stored) => {
-        if (cancelled) return;
-        committed.current = stored;
-        setHistory(stored);
+        if (!cancelled) historyLoaded(stored);
       })
       .catch(() => {
-        if (cancelled) return;
-        // A list that could not be read must not be replaced by the next
-        // write: that would turn a failed read into a lost history. Writes
-        // refuse until the app is restarted.
-        readFailed.current = true;
-        setHistoryLoadFailed(true);
+        if (!cancelled) historyFailed();
       });
 
     // Both reads settle their own failures above, so this runs on every
     // path: a rejected read must not strand the splash.
-    void Promise.all([payeeRead, historyRead]).then(() => {
+    void Promise.all([bookRead, historyRead]).then(() => {
       if (!cancelled) setLoaded(true);
     });
     return () => {
       cancelled = true;
       subscription.remove();
     };
-  }, []);
+  }, [bookLoaded, bookFailed, historyLoaded, historyFailed]);
 
   useEffect(() => {
     if (loaded) SplashScreen.hideAsync().catch(() => undefined);
   }, [loaded]);
 
-  // Rejects when the write fails, so the screen can keep the draft and report it
-  // instead of navigating away from settings that were never persisted.
-  const onSave = useCallback(async (next: Payee) => {
-    await savePayee(next);
-    setPayee(next);
-    setLoadFailed(false);
-    // A link opened while the write was running has moved on to its review.
-    setScreen((current) => (current === "payee" ? "request" : current));
-  }, []);
-
-  // Writes go through one queue, each applied to the list the previous one
-  // committed, and the device is written before the screen changes, so a list
-  // the user sees is a list the device holds. A write rejects on failure and
-  // the screen reports it; the queue itself carries on.
-  const commitHistory = useCallback((update: (current: HistoryEntry[]) => HistoryEntry[]) => {
-    const write = writes.current.then(async () => {
-      if (readFailed.current) throw new Error("history was not read");
-      const next = update(committed.current);
-      await saveHistory(next);
-      committed.current = next;
-      setHistory(next);
-    });
-    writes.current = write.catch(() => undefined);
-    return write;
-  }, []);
+  // Each write rejects when it fails, so the screen can keep its draft and
+  // report it instead of moving on from settings that were never persisted.
+  // A payee just saved becomes the active one and the form returns to the
+  // request screen; a link opened while the write was running has moved on
+  // to its review and is left alone.
+  const onSavePayee = useCallback(
+    async (editing: number | null, payee: Payee) => {
+      await commitBook((current) => {
+        const next = savePayeeAt(current, editing, payee);
+        // A full book or a stale index leaves the book as it was. That is a
+        // failed save, not a silent success.
+        if (next === current) throw new Error("the payee was not saved");
+        return next;
+      });
+      setScreen((current) => (current.name === "payee" ? { name: "request" } : current));
+    },
+    [commitBook],
+  );
+  const onRemovePayee = useCallback(
+    async (index: number) => {
+      await commitBook((current) => removePayeeAt(current, index));
+      setScreen((current) => (current.name === "payee" ? { name: "payees" } : current));
+    },
+    [commitBook],
+  );
+  const onUsePayee = useCallback(
+    (index: number) => commitBook((current) => setActivePayee(current, index)),
+    [commitBook],
+  );
   const onKeep = useCallback(
-    (payload: string) => commitHistory((current) => rememberRequest(current, payload, new Date())),
+    (payload: string) =>
+      commitHistory((current) => rememberRequest(current, payload, new Date())),
     [commitHistory],
   );
   const onMark = useCallback(
     (id: string, done: boolean) => commitHistory((current) => markEntry(current, id, done)),
     [commitHistory],
   );
+
+  const payees = book.value.payees;
+  // Where the payee card on the request screen leads: straight to the form
+  // while there is nothing to choose from, otherwise to the list.
+  const choosePayee = () =>
+    setScreen(payees.length === 0 ? { name: "payee", editing: null } : { name: "payees" });
 
   // The safe-area library insets on both platforms; the SafeAreaView built
   // into React Native is iOS-only, and Android draws edge to edge.
@@ -161,38 +181,50 @@ export default function App() {
       <View style={[styles.root, { backgroundColor: theme.background }]}>
         <SafeAreaView style={styles.root}>
           <StatusBar style="auto" />
-        {!loaded ? (
-          <ActivityIndicator style={styles.loading} color={theme.primary} />
-        ) : screen === "payee" ? (
-          <PayeeScreen
-            payee={payee}
-            onSave={onSave}
-            onCancel={() => setScreen("request")}
-            notice={loadFailed ? READ_FAILED_NOTICE : null}
-          />
-        ) : screen === "scan" ? (
-          <ScanScreen opened={opened} onBack={() => setScreen("request")} />
-        ) : screen === "history" ? (
-          <HistoryScreen
-            entries={history}
-            loadFailed={historyLoadFailed}
-            onMark={onMark}
-            onBack={() => setScreen("request")}
-          />
-        ) : (
-          <RequestScreen
-            payee={payee}
-            onEditPayee={() => setScreen("payee")}
-            onHistory={() => setScreen("history")}
-            onKeep={onKeep}
-            onScan={() => {
-              // Scanning by choice starts from the camera, not from a link
-              // reviewed earlier.
-              setOpened(null);
-              setScreen("scan");
-            }}
-          />
-        )}
+          {!loaded ? (
+            <ActivityIndicator style={styles.loading} color={theme.primary} />
+          ) : screen.name === "payee" ? (
+            <PayeeScreen
+              key={screen.editing ?? "new"}
+              payee={screen.editing === null ? undefined : payees[screen.editing]}
+              onSave={(payee) => onSavePayee(screen.editing, payee)}
+              onRemove={screen.editing === null ? undefined : onRemovePayee.bind(null, screen.editing)}
+              onCancel={() => setScreen(payees.length === 0 ? { name: "request" } : { name: "payees" })}
+              notice={book.loadFailed ? READ_FAILED_NOTICE : null}
+            />
+          ) : screen.name === "payees" ? (
+            <PayeesScreen
+              book={book.value}
+              onUse={onUsePayee}
+              onEdit={(index) => setScreen({ name: "payee", editing: index })}
+              onAdd={() => setScreen({ name: "payee", editing: null })}
+              onBack={() => setScreen({ name: "request" })}
+            />
+          ) : screen.name === "scan" ? (
+            <ScanScreen opened={opened} onBack={() => setScreen({ name: "request" })} />
+          ) : screen.name === "history" ? (
+            <HistoryScreen
+              entries={history.value}
+              loadFailed={history.loadFailed}
+              onMark={onMark}
+              onBack={() => setScreen({ name: "request" })}
+            />
+          ) : (
+            <RequestScreen
+              payee={activePayee(book.value)}
+              payeeCount={payees.length}
+              onEditPayee={choosePayee}
+              onRepairPayee={() => setScreen({ name: "payee", editing: book.value.active })}
+              onHistory={() => setScreen({ name: "history" })}
+              onKeep={onKeep}
+              onScan={() => {
+                // Scanning by choice starts from the camera, not from a link
+                // reviewed earlier.
+                setOpened(null);
+                setScreen({ name: "scan" });
+              }}
+            />
+          )}
         </SafeAreaView>
       </View>
     </SafeAreaProvider>

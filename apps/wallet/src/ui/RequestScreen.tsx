@@ -28,8 +28,13 @@ import {
 import { useTheme } from "./theme";
 
 interface RequestScreenProps {
+  /** The active payee, or empty fields while there is none. */
   payee: Payee;
+  /** How many payees the device holds, which decides what the payee card offers. */
+  payeeCount: number;
   onEditPayee: () => void;
+  /** Opens the form on the active payee, for one that is present but does not encode. */
+  onRepairPayee: () => void;
   onScan: () => void;
   onHistory: () => void;
   /** Keeps a composed request in the history. Rejects when it could not be written. */
@@ -69,7 +74,9 @@ const PAYEE_ELEMENTS: ReadonlySet<string> = new Set(["name", "iban", "bic"]);
  */
 export function RequestScreen({
   payee,
+  payeeCount,
   onEditPayee,
+  onRepairPayee,
   onScan,
   onHistory,
   onKeep,
@@ -106,7 +113,11 @@ export function RequestScreen({
               </Text>
               <Hint>{formatIbanForDisplay(payee.iban)}</Hint>
             </View>
-            <TextAction label="Change" onPress={onEditPayee} accessibilityLabel="Change payee" />
+            <TextAction
+              label={payeeCount > 1 ? "Switch" : "Change"}
+              onPress={onEditPayee}
+              accessibilityLabel={payeeCount > 1 ? "Switch payee" : "Change payee"}
+            />
           </View>
         </Card>
       ) : payeeEmpty ? (
@@ -126,7 +137,7 @@ export function RequestScreen({
               {field}: {message}
             </Problem>
           ))}
-          <Button label="Open payee settings" onPress={onEditPayee} />
+          <Button label="Open payee settings" onPress={onRepairPayee} />
         </Card>
       )}
 
