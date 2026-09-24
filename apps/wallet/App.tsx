@@ -17,7 +17,16 @@ import {
   type PayeeBook,
 } from "./src/settings/payee";
 import { loadHistory, loadPayeeBook, saveHistory, savePayeeBook } from "./src/settings/storage";
+import {
+  TransferProblem,
+  type ImportOutcome,
+  mergeTransfer,
+  readTransfer,
+  serializeTransfer,
+  transferFileName,
+} from "./src/settings/transfer";
 import { useCommittedStore } from "./src/ui/committed";
+import { pickDataFile, shareDataFile } from "./src/ui/dataFile";
 import { HistoryScreen } from "./src/ui/HistoryScreen";
 import { type Tab, TabBar } from "./src/ui/kit";
 import { PayeeScreen } from "./src/ui/PayeeScreen";
@@ -51,6 +60,8 @@ type Screen =
   | { name: "payees"; origin: Origin }
   | { name: "payee"; editing: number | null; origin: Origin; fromList: boolean };
 
+const IMPORT_OVER_UNREAD =
+  "Saved payees could not be read from this device, so a file cannot be added to them.";
 const READ_FAILED_NOTICE =
   "Saved settings could not be read from this device. Enter them again to build a code.";
 
@@ -230,6 +241,68 @@ export default function App() {
     (id: string, done: boolean) => commitHistory((current) => markEntry(current, id, done)),
     [commitHistory],
   );
+  // The export is built from what is committed, not from a draft on screen.
+  const bookValue = book.value;
+  const historyValue = history.value;
+  const onExport = useCallback(() => {
+    const now = new Date();
+    return shareDataFile(
+      transferFileName(now),
+      serializeTransfer({ book: bookValue, history: historyValue }, now),
+    );
+  }, [bookValue, historyValue]);
+  // The payees are written first and on their own, so a history that cannot
+  // be written (after a failed read) still leaves the payees imported, and
+  // the outcome says so. The counts are taken once a write has settled: a
+  // write that fails added nothing.
+  const bookUnread = book.loadFailed;
+  const onImport = useCallback(async (): Promise<ImportOutcome | null> => {
+    // A book that could not be read would be written over by the merge, and
+    // that is the user's whole list: a file is not worth it.
+    if (bookUnread) throw new TransferProblem(IMPORT_OVER_UNREAD);
+    const text = await pickDataFile();
+    if (text === null) return null;
+    const read = readTransfer(text, new Date());
+    if (!read.ok) throw new TransferProblem(read.reason);
+    const outcome: ImportOutcome = {
+      added: { payees: 0, history: 0 },
+      skipped: { payees: 0, history: 0 },
+      dropped: read.dropped,
+      historyFailed: false,
+    };
+    let pending = { added: 0, skipped: 0 };
+    await commitBook((current) => {
+      const merged = mergeTransfer({ book: current, history: [] }, { ...read.transfer, history: [] });
+      pending = { added: merged.added.payees, skipped: merged.skipped.payees };
+      return merged.transfer.book;
+    });
+    outcome.added.payees = pending.added;
+    outcome.skipped.payees = pending.skipped;
+    // A file without kept requests has nothing to write, so a history that
+    // refuses writes is not asked.
+    if (read.transfer.history.length === 0) return outcome;
+    try {
+      await commitHistory((current) => {
+        const merged = mergeTransfer(
+          { book: EMPTY_BOOK, history: current },
+          { book: EMPTY_BOOK, history: read.transfer.history },
+        );
+        pending = { added: merged.added.history, skipped: merged.skipped.history };
+        return merged.transfer.history;
+      });
+      outcome.added.history = pending.added;
+      outcome.skipped.history = pending.skipped;
+    } catch {
+      outcome.historyFailed = true;
+    }
+    return outcome;
+  }, [bookUnread, commitBook, commitHistory]);
+  // An export after a failed read would hand out a file missing what could
+  // not be read, and look complete. It is refused instead.
+  const exportProblem =
+    book.loadFailed || history.loadFailed
+      ? "Saved data could not be read from this device, so there is nothing complete to export."
+      : null;
 
   const payees = book.value.payees;
   // Where a payee card or row leads: straight to the form while there is
@@ -300,6 +373,9 @@ export default function App() {
                 payeeCount={payees.length}
                 activeName={activeName}
                 onPayees={() => choosePayee("settings")}
+                onExport={onExport}
+                exportProblem={exportProblem}
+                onImport={onImport}
                 onBack={() => setScreen({ name: "tab" })}
               />
             </SafeAreaView>

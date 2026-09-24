@@ -15,7 +15,8 @@ system. The values decoded back out of the code are a tap away below it. On the 
 app scans a code, reads a pasted request (including a payto link) or opens a shared link, shows
 what the request says and then hands it to a banking app. A bar at the foot of the screen switches
 between requesting, paying and the history; the gear in the header opens the settings, which hold
-the payees. The screens follow the system appearance, light or dark, and a native build shows the
+the payees and move the data to another device as one file. The screens follow the system
+appearance, light or dark, and a native build shows the
 logo on a splash screen while the settings are read. EN 18184 codes are not supported yet; see the
 checklist on the tracking issue.
 
@@ -33,6 +34,26 @@ whether a request was ever paid, so the mark is the payee's own bookkeeping, nev
 status. The newest 200 entries are kept; sharing the same request twice in a row keeps one entry.
 A stored history that cannot be read is left in place: nothing is kept or marked until the app
 restarts, so a failed read never turns into a lost list.
+
+## Moving the data to another device
+
+Settings offers an export and an import. The export writes the payees and the kept requests to
+one JSON file and hands it to the share sheet of the operating system, so where it goes is the
+user's choice; the wallet sends nothing itself. The file names its format and a version number,
+so a later shape of the file can still read an earlier export, and an export written by a newer
+wallet is refused with a message rather than misread.
+
+The import reads a file the user picks and adds what it holds to what the device holds. Nothing
+is replaced or pushed out: a payee whose IBAN is already held is skipped, a request already kept
+(the same id, or the same payload built at the same time) is skipped, new entries go only into
+the room the lists have and the active payee stays unless there was none. Every payee in the file
+passes the same encoder check the form runs, and every kept request must decode through the same
+strict reader a scanned code goes through and carry a build time no later than the clock, so
+nothing gets in through a file that could not have got in by hand. What was skipped and what
+could not be used are counted and said. The payees are written before the kept requests, so a
+history that cannot be written still leaves the payees imported, and the notice says so. An
+export is refused while saved data could not be read, since the file would look complete and not
+be.
 
 ## The request flow
 
@@ -200,8 +221,8 @@ pnpm --filter @euvena/wallet build   # bundles the JS, no native toolchain requi
 | `plugins/` | Config plugin that keeps a restored Android activity from reopening its launch link |
 | `src/epc/` | Form state to EPC069-12 payload, the link form of a request, plus the display formatting |
 | `src/qr/` | QR symbol construction and its SVG path |
-| `src/settings/` | Payee settings and the request history, on-device only |
-| `src/ui/` | Screens, the building blocks they share (`kit.tsx`), the palette for both appearances (`theme.ts`) and the QR view |
+| `src/settings/` | Payee settings, the request history and the data file that moves them, on-device only |
+| `src/ui/` | Screens, the building blocks they share (`kit.tsx`), the palette for both appearances (`theme.ts`), the QR view and the file share and pick (`dataFile.ts`) |
 | `metro.config.js` | Workspace-aware resolver so `packages/*` resolve and hot-reload |
 | `test/` | Plain-TypeScript tests; the React Native surface is covered by typecheck and lint |
 
