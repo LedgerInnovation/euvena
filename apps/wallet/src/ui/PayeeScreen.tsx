@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { formatIbanForDisplay, normalizePayee, validatePayee, type Payee } from "../epc/request";
+import { Button, Card, Field, Header, Hint, Input, Problem, Screen } from "./kit";
 
 interface PayeeScreenProps {
   payee: Payee;
@@ -48,154 +49,83 @@ export function PayeeScreen({ payee, onSave, onCancel, notice = null }: PayeeScr
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>Payee settings</Text>
-      <Text style={styles.intro}>
-        Held on this device only. The wallet has no accounts and no backend and never routes
-        funds.
-      </Text>
+    <Screen>
+      <Header
+        title="Payee settings"
+        subtitle="Held on this device only. The wallet has no accounts and no backend and never routes funds."
+        action={{ label: "Cancel", onPress: onCancel, disabled: saving }}
+      />
 
-      {notice === null ? null : <Text style={styles.error}>{notice}</Text>}
+      {notice === null ? null : (
+        <Card tone="danger">
+          <Problem>{notice}</Problem>
+        </Card>
+      )}
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Name</Text>
-        <TextInput
-          style={styles.input}
-          value={draft.name}
-          onChangeText={(name) => setDraft({ ...draft, name })}
-          placeholder="Beneficiary name, up to 70 characters"
-          autoCorrect={false}
-        />
-        {nameError === undefined ? null : <Text style={styles.error}>{nameError}</Text>}
-      </View>
+      <Card>
+        <Field label="Name" error={nameError}>
+          <Input
+            value={draft.name}
+            onChangeText={(name) => setDraft({ ...draft, name })}
+            placeholder="Beneficiary name, up to 70 characters"
+            autoCorrect={false}
+            textContentType="name"
+          />
+        </Field>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>IBAN</Text>
-        <TextInput
-          style={styles.input}
-          value={draft.iban}
-          onChangeText={(value) => setDraft({ ...draft, iban: value })}
-          placeholder="DE33 1002 0500 0001 1947 00"
-          autoCapitalize="characters"
-          autoCorrect={false}
-        />
-        {ibanError !== undefined ? (
-          <Text style={styles.error}>{ibanError}</Text>
-        ) : normalized.iban === "" ? null : (
-          <Text style={styles.hint}>{formatIbanForDisplay(normalized.iban)}</Text>
-        )}
-      </View>
+        <Field
+          label="IBAN"
+          error={ibanError}
+          hint={normalized.iban === "" ? undefined : formatIbanForDisplay(normalized.iban)}
+        >
+          <Input
+            value={draft.iban}
+            onChangeText={(value) => setDraft({ ...draft, iban: value })}
+            placeholder="DE33 1002 0500 0001 1947 00"
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+        </Field>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>BIC</Text>
-        <TextInput
-          style={styles.input}
-          value={draft.bic}
-          onChangeText={(bic) => setDraft({ ...draft, bic })}
-          placeholder="Optional inside the EEA"
-          autoCapitalize="characters"
-          autoCorrect={false}
-        />
-        {bicError === undefined ? null : <Text style={styles.error}>{bicError}</Text>}
-        <Text style={styles.hint}>
-          Version 002 codes leave the BIC out for EEA beneficiaries. It stays mandatory for
-          accounts in SEPA countries outside the EEA.
-        </Text>
-      </View>
+        <Field label="BIC" error={bicError}>
+          <Input
+            value={draft.bic}
+            onChangeText={(bic) => setDraft({ ...draft, bic })}
+            placeholder="Optional inside the EEA"
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+          {/* Outside the error slot, so the rule stays readable under an error. */}
+          <Hint>
+            Version 002 codes leave the BIC out for EEA beneficiaries. It stays mandatory for
+            accounts in SEPA countries outside the EEA.
+          </Hint>
+        </Field>
+      </Card>
 
-      {saveFailed ? <Text style={styles.error}>{SAVE_FAILED}</Text> : null}
+      {saveFailed ? (
+        <Card tone="danger">
+          <Problem>{SAVE_FAILED}</Problem>
+        </Card>
+      ) : null}
 
       <View style={styles.actions}>
-        <Pressable
-          onPress={onCancel}
-          accessibilityRole="button"
-          disabled={saving}
-          style={styles.secondary}
-        >
-          <Text style={styles.secondaryLabel}>Cancel</Text>
-        </Pressable>
-        <Pressable
+        <Button
+          label={saving ? "Saving" : "Save"}
+          disabled={!complete}
+          busy={saving}
           onPress={() => {
             void submit();
           }}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !complete || saving, busy: saving }}
-          disabled={!complete || saving}
-          style={[styles.primary, complete && !saving ? null : styles.primaryDisabled]}
-        >
-          <Text style={styles.primaryLabel}>{saving ? "Saving" : "Save"}</Text>
-        </Pressable>
+        />
+        <Hint center>Nothing is sent anywhere. The details only go into the codes you build.</Hint>
       </View>
-    </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-    gap: 24,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "600",
-  },
-  intro: {
-    fontSize: 14,
-    lineHeight: 20,
-    opacity: 0.7,
-  },
-  field: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    opacity: 0.6,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#c7c7cc",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-  },
-  hint: {
-    fontSize: 12,
-    opacity: 0.6,
-    lineHeight: 17,
-  },
-  error: {
-    fontSize: 12,
-    color: "#b3261e",
-  },
   actions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
     gap: 12,
-  },
-  secondary: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-  },
-  secondaryLabel: {
-    fontSize: 15,
-  },
-  primary: {
-    backgroundColor: "#1b64c8",
-    borderRadius: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-  },
-  primaryDisabled: {
-    opacity: 0.4,
-  },
-  primaryLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#ffffff",
   },
 });

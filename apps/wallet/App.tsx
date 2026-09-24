@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, SafeAreaView, StyleSheet } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import * as Linking from "expo-linking";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { EMPTY_PAYEE, type Payee } from "./src/epc/request";
 import { readOpenedLink, type OpenedRequest } from "./src/epc/scan";
@@ -9,11 +11,17 @@ import { loadPayee, savePayee } from "./src/settings/storage";
 import { PayeeScreen } from "./src/ui/PayeeScreen";
 import { RequestScreen } from "./src/ui/RequestScreen";
 import { ScanScreen } from "./src/ui/ScanScreen";
+import { useTheme } from "./src/ui/theme";
 
 type Screen = "request" | "payee" | "scan";
 
 const READ_FAILED_NOTICE =
   "Saved settings could not be read from this device. Enter them again to build a code.";
+
+// The splash stays up until the settings are read, so the first frame is a
+// screen rather than a spinner. Expo Go has no splash of its own to hold, and
+// the call rejects there; that is nothing to act on.
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 export default function App() {
   const [payee, setPayee] = useState<Payee>(EMPTY_PAYEE);
@@ -23,6 +31,7 @@ export default function App() {
   const [opened, setOpened] = useState<OpenedRequest | null>(null);
   // Outlives a remount of the effect, so arrival numbers never repeat.
   const arrivals = useRef(0);
+  const theme = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -77,6 +86,10 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (loaded) SplashScreen.hideAsync().catch(() => undefined);
+  }, [loaded]);
+
   // Rejects when the write fails, so the screen can keep the draft and report it
   // instead of navigating away from settings that were never persisted.
   const onSave = useCallback(async (next: Payee) => {
@@ -87,33 +100,39 @@ export default function App() {
     setScreen((current) => (current === "payee" ? "request" : current));
   }, []);
 
+  // The safe-area library insets on both platforms; the SafeAreaView built
+  // into React Native is iOS-only, and Android draws edge to edge.
   return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar style="auto" />
-      {!loaded ? (
-        <ActivityIndicator style={styles.loading} />
-      ) : screen === "payee" ? (
-        <PayeeScreen
-          payee={payee}
-          onSave={onSave}
-          onCancel={() => setScreen("request")}
-          notice={loadFailed ? READ_FAILED_NOTICE : null}
-        />
-      ) : screen === "scan" ? (
-        <ScanScreen opened={opened} onBack={() => setScreen("request")} />
-      ) : (
-        <RequestScreen
-          payee={payee}
-          onEditPayee={() => setScreen("payee")}
-          onScan={() => {
-            // Scanning by choice starts from the camera, not from a link
-            // reviewed earlier.
-            setOpened(null);
-            setScreen("scan");
-          }}
-        />
-      )}
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <View style={[styles.root, { backgroundColor: theme.background }]}>
+        <SafeAreaView style={styles.root}>
+          <StatusBar style="auto" />
+        {!loaded ? (
+          <ActivityIndicator style={styles.loading} color={theme.primary} />
+        ) : screen === "payee" ? (
+          <PayeeScreen
+            payee={payee}
+            onSave={onSave}
+            onCancel={() => setScreen("request")}
+            notice={loadFailed ? READ_FAILED_NOTICE : null}
+          />
+        ) : screen === "scan" ? (
+          <ScanScreen opened={opened} onBack={() => setScreen("request")} />
+        ) : (
+          <RequestScreen
+            payee={payee}
+            onEditPayee={() => setScreen("payee")}
+            onScan={() => {
+              // Scanning by choice starts from the camera, not from a link
+              // reviewed earlier.
+              setOpened(null);
+              setScreen("scan");
+            }}
+          />
+        )}
+        </SafeAreaView>
+      </View>
+    </SafeAreaProvider>
   );
 }
 

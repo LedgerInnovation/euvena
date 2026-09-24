@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  AccessibilityInfo,
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { AccessibilityInfo, Linking, StyleSheet, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
 import { type EpcQrData } from "@euvena/qr";
@@ -22,6 +13,22 @@ import {
   type OpenedRequest,
   type ReadRequestResult,
 } from "../epc/scan";
+import {
+  Button,
+  Card,
+  CardTitle,
+  Field,
+  Header,
+  Hint,
+  Input,
+  Problem,
+  Rows,
+  Screen,
+  SectionLabel,
+  TextAction,
+  type RowItem,
+} from "./kit";
+import { useTheme } from "./theme";
 
 const WAITING_NOTICE =
   "Another request was opened. The one below is still the one you were looking at.";
@@ -86,25 +93,22 @@ export function ScanScreen({ opened, onBack }: ScanScreenProps) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.header}>
-        <Text style={styles.title}>Scan a request</Text>
-        <Pressable onPress={onBack} accessibilityRole="button">
-          <Text style={styles.link}>Request money</Text>
-        </Pressable>
-      </View>
-      <Text style={styles.intro}>
-        Reads a payment code or a shared request and shows what it says. Reading pays nothing and
-        sends nothing.
-      </Text>
+    <Screen>
+      <Header
+        title={result?.ok === true ? "Review request" : "Scan a request"}
+        subtitle={
+          result?.ok === true
+            ? "Nothing has been paid or sent. Handing the request to a banking app waits for you."
+            : "Reads a payment code or a shared request and shows what it says. Reading pays nothing and sends nothing."
+        }
+        action={{ label: "Request money", onPress: onBack }}
+      />
 
       {waiting === null ? null : (
-        <View style={styles.waiting}>
-          <Text style={styles.issue}>{WAITING_NOTICE}</Text>
-          <Pressable onPress={() => show(waiting)} accessibilityRole="button" style={styles.secondary}>
-            <Text style={styles.secondaryLabel}>Show the new request</Text>
-          </Pressable>
-        </View>
+        <Card tone="soft">
+          <Problem>{WAITING_NOTICE}</Problem>
+          <Button label="Show the new request" variant="secondary" onPress={() => show(waiting)} />
+        </Card>
       )}
 
       {result === null ? (
@@ -121,7 +125,7 @@ export function ScanScreen({ opened, onBack }: ScanScreenProps) {
       ) : (
         <RejectionPanel reason={result.reason} onReset={reset} />
       )}
-    </ScrollView>
+    </Screen>
   );
 }
 
@@ -132,33 +136,31 @@ export function ScanScreen({ opened, onBack }: ScanScreenProps) {
  */
 function CameraSurface({ onRead }: { onRead: (text: string) => void }) {
   const [permission, requestPermission] = useCameraPermissions();
+  const theme = useTheme();
 
   // The permission module has not answered yet. The paste path works meanwhile.
-  if (permission === null) return <View style={styles.cameraPlaceholder} />;
+  if (permission === null) {
+    return <View style={[styles.cameraPlaceholder, { backgroundColor: theme.surface }]} />;
+  }
 
   if (!permission.granted) {
     return (
-      <View style={styles.cameraPlaceholder}>
+      <View style={[styles.cameraPlaceholder, { backgroundColor: theme.surface }]}>
         {permission.canAskAgain ? (
           <>
-            <Pressable
+            <Button
+              label="Turn on the camera"
               onPress={() => {
                 void requestPermission();
               }}
-              accessibilityRole="button"
-              style={styles.primary}
-            >
-              <Text style={styles.primaryLabel}>Turn on the camera</Text>
-            </Pressable>
-            <Text style={styles.placeholderHint}>
-              The camera is only used to read codes on this screen.
-            </Text>
+            />
+            <Hint center>The camera is only used to read codes on this screen.</Hint>
           </>
         ) : (
-          <Text style={styles.placeholderHint}>
+          <Hint center>
             The camera is switched off for this app in the system settings. Pasting below still
             works.
-          </Text>
+          </Hint>
         )}
       </View>
     );
@@ -166,13 +168,28 @@ function CameraSurface({ onRead }: { onRead: (text: string) => void }) {
 
   return (
     <View style={styles.cameraFrame}>
-      <CameraView
-        style={styles.camera}
-        facing="back"
-        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-        onBarcodeScanned={(scan) => onRead(scan.data)}
-      />
-      <Text style={styles.hint}>Point the camera at a payment QR code.</Text>
+      <View style={styles.camera}>
+        <CameraView
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+          onBarcodeScanned={(scan) => onRead(scan.data)}
+        />
+        <Viewfinder />
+      </View>
+      <Hint center>Point the camera at a payment QR code.</Hint>
+    </View>
+  );
+}
+
+/** Four corner marks over the camera, so the payer knows where to hold the code. */
+function Viewfinder() {
+  return (
+    <View pointerEvents="none" style={styles.viewfinder}>
+      <View style={[styles.corner, styles.cornerTopLeft]} />
+      <View style={[styles.corner, styles.cornerTopRight]} />
+      <View style={[styles.corner, styles.cornerBottomLeft]} />
+      <View style={[styles.corner, styles.cornerBottomRight]} />
     </View>
   );
 }
@@ -182,27 +199,19 @@ function PasteEntry({ onRead }: { onRead: (text: string) => void }) {
   const empty = pasted.trim() === "";
 
   return (
-    <View style={styles.field}>
-      <Text style={styles.label}>Or paste a request</Text>
-      <TextInput
-        style={[styles.input, styles.multiline]}
-        value={pasted}
-        onChangeText={setPasted}
-        placeholder="A euvena:// or payto:// link, or the text of a code"
-        autoCapitalize="none"
-        autoCorrect={false}
-        multiline
-      />
-      <Pressable
-        onPress={() => onRead(pasted)}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: empty }}
-        disabled={empty}
-        style={[styles.primary, empty ? styles.primaryDisabled : null]}
-      >
-        <Text style={styles.primaryLabel}>Read what was pasted</Text>
-      </Pressable>
-    </View>
+    <Card>
+      <Field label="Or paste a request">
+        <Input
+          value={pasted}
+          onChangeText={setPasted}
+          placeholder="A euvena:// or payto:// link, or the text of a code"
+          autoCapitalize="none"
+          autoCorrect={false}
+          multiline
+        />
+      </Field>
+      <Button label="Read what was pasted" disabled={empty} onPress={() => onRead(pasted)} />
+    </Card>
   );
 }
 
@@ -212,23 +221,18 @@ function PasteEntry({ onRead }: { onRead: (text: string) => void }) {
  */
 function ReviewPanel({ data, onReset }: { data: EpcQrData; onReset: () => void }) {
   return (
-    <View style={styles.panel}>
-      <Text style={styles.panelTitle}>What the code says</Text>
-      {summarizeRequest(data).map((row) => (
-        <View key={row.label} style={styles.row}>
-          <Text style={styles.rowLabel}>{row.label}</Text>
-          <Text style={styles.rowValue}>{row.value}</Text>
-        </View>
-      ))}
-      <Text style={styles.hint}>
-        Values read from the code itself. Check the name and IBAN with whoever is asking to be
-        paid; the code cannot do that for you.
-      </Text>
+    <>
+      <Card>
+        <CardTitle>What the code says</CardTitle>
+        <Rows rows={summarizeRequest(data)} />
+        <Hint>
+          Values read from the code itself. Check the name and IBAN with whoever is asking to be
+          paid; the code cannot do that for you.
+        </Hint>
+      </Card>
       <HandoffActions data={data} />
-      <Pressable onPress={onReset} accessibilityRole="button" style={styles.secondary}>
-        <Text style={styles.secondaryLabel}>Read another</Text>
-      </Pressable>
-    </View>
+      <Button label="Read another" variant="ghost" onPress={onReset} />
+    </>
   );
 }
 
@@ -284,208 +288,134 @@ function HandoffActions({ data }: { data: EpcQrData }) {
   const reference = fields.find((field) => field.label === "Reference");
   const rest = reference === undefined ? fields : fields.filter((field) => field !== reference);
 
-  const row = (field: HandoffField) => (
-    <View key={field.label} style={styles.row}>
-      <Text style={styles.rowLabel}>{field.label}</Text>
-      <Text style={styles.rowValue} numberOfLines={1}>
-        {field.value}
-      </Text>
-      <Pressable
+  const row = (field: HandoffField): RowItem => ({
+    label: field.label,
+    value: field.value,
+    singleLine: true,
+    trailing: (
+      <TextAction
+        label={copied === field.label ? "Copied" : "Copy"}
         onPress={() => {
           void onCopy(field);
         }}
-        accessibilityRole="button"
         accessibilityLabel={
           copied === field.label ? `${field.label} copied` : `Copy ${field.label}`
         }
-      >
-        <Text style={styles.link}>{copied === field.label ? "Copied" : "Copy"}</Text>
-      </Pressable>
-    </View>
-  );
+      />
+    ),
+  });
 
   return (
-    <View style={styles.handoff}>
+    <Card>
+      <CardTitle>Pay it</CardTitle>
       {/* The URI cannot carry the structured reference, so its warning and its
           copy action stand BEFORE the launch action: the payer must be able to
           take the reference along before leaving for the banking app, not
           discover its absence after the transfer form is already open. */}
       {reference === undefined ? null : (
-        <>
-          <Text style={styles.issue}>
+        <View style={styles.referenceWarning}>
+          <Problem>
             The link cannot carry the structured reference. Copy it first and paste it into the
             reference field of your banking app.
-          </Text>
-          {row(reference)}
-        </>
+          </Problem>
+          <Rows rows={[row(reference)]} />
+        </View>
       )}
-      <Pressable
+      <Button
+        label="Open your banking app"
+        busy={opening}
         onPress={() => {
           void onOpen();
         }}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: opening, busy: opening }}
-        disabled={opening}
-        style={[styles.primary, opening ? styles.primaryDisabled : null]}
-      >
-        <Text style={styles.primaryLabel}>Open your banking app</Text>
-      </Pressable>
-      {noHandler ? <Text style={styles.issue}>{NO_HANDLER_NOTICE}</Text> : null}
-      <Text style={styles.label}>Copy into a transfer form</Text>
-      {rest.map(row)}
-      <Text style={styles.hint}>
+      />
+      {noHandler ? <Problem>{NO_HANDLER_NOTICE}</Problem> : null}
+      <SectionLabel>Copy into a transfer form</SectionLabel>
+      <Rows rows={rest.map(row)} />
+      <Hint>
         The link is a payto address built from the code. If no app on this device answers it,
         your banking app may still scan these codes directly.
-      </Text>
-    </View>
+      </Hint>
+    </Card>
   );
 }
 
 function RejectionPanel({ reason, onReset }: { reason: string; onReset: () => void }) {
   return (
-    <View style={styles.panel}>
-      <Text style={styles.panelTitle}>Nothing usable was read</Text>
-      <Text style={styles.issue}>{reason}</Text>
-      <Text style={styles.hint}>
-        A request that fails a check is not shown at all: a partial reading could direct money to
-        the wrong account.
-      </Text>
-      <Pressable onPress={onReset} accessibilityRole="button" style={styles.secondary}>
-        <Text style={styles.secondaryLabel}>Try again</Text>
-      </Pressable>
-    </View>
+    <>
+      <Card tone="danger">
+        <CardTitle>Nothing usable was read</CardTitle>
+        <Problem>{reason}</Problem>
+        <Hint>
+          A request that fails a check is not shown at all: a partial reading could direct money
+          to the wrong account.
+        </Hint>
+      </Card>
+      <Button label="Try again" variant="secondary" onPress={onReset} />
+    </>
   );
 }
 
+const CORNER = 28;
+
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-    gap: 24,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "600",
-  },
-  link: {
-    fontSize: 15,
-    color: "#1b64c8",
-  },
-  intro: {
-    fontSize: 14,
-    lineHeight: 20,
-    opacity: 0.75,
-  },
   cameraFrame: {
-    gap: 8,
+    gap: 10,
   },
   camera: {
     width: "100%",
     aspectRatio: 1,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: "hidden",
+    backgroundColor: "#000000",
   },
   cameraPlaceholder: {
     width: "100%",
     aspectRatio: 1,
-    borderRadius: 12,
-    backgroundColor: "#e8e8ed",
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
   },
-  placeholderHint: {
-    fontSize: 12,
-    opacity: 0.6,
-    lineHeight: 17,
-    textAlign: "center",
+  viewfinder: {
+    position: "absolute",
+    top: 36,
+    right: 36,
+    bottom: 36,
+    left: 36,
   },
-  field: {
-    gap: 8,
+  corner: {
+    position: "absolute",
+    width: CORNER,
+    height: CORNER,
+    borderColor: "#FFFFFF",
+    borderRadius: 3,
   },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    opacity: 0.6,
+  cornerTopLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: "#c7c7cc",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
+  cornerTopRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
   },
-  multiline: {
-    minHeight: 72,
-    textAlignVertical: "top",
+  cornerBottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
   },
-  hint: {
-    fontSize: 12,
-    opacity: 0.6,
-    lineHeight: 17,
+  cornerBottomRight: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
   },
-  issue: {
-    fontSize: 13,
-    color: "#b3261e",
-  },
-  panel: {
-    gap: 8,
-  },
-  waiting: {
-    gap: 8,
-  },
-  handoff: {
-    marginTop: 12,
-    gap: 8,
-  },
-  panelTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  row: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  rowLabel: {
-    width: 84,
-    fontSize: 13,
-    opacity: 0.6,
-  },
-  rowValue: {
-    flex: 1,
-    fontSize: 15,
-  },
-  primary: {
-    backgroundColor: "#1b64c8",
-    borderRadius: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  primaryDisabled: {
-    opacity: 0.4,
-  },
-  primaryLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#ffffff",
-  },
-  secondary: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  secondaryLabel: {
-    fontSize: 15,
-    color: "#1b64c8",
+  referenceWarning: {
+    gap: 4,
   },
 });

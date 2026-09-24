@@ -1,21 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { Share, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { EPC069_MAX_BYTES, byteLength, type EpcQrData } from "@euvena/qr";
 
 import { buildShareMessage } from "../epc/link";
 import {
   EMPTY_FORM,
   buildPaymentRequest,
+  formatIbanForDisplay,
   summarizeRequest,
+  validatePayee,
   type Payee,
   type RemittanceKind,
   type RequestForm,
@@ -26,7 +19,23 @@ import {
   toQrSymbol,
   type QrSymbol,
 } from "../qr/symbol";
+import {
+  Button,
+  Card,
+  CardTitle,
+  Field,
+  Header,
+  Hint,
+  Input,
+  Problem,
+  Rows,
+  Screen,
+  Segmented,
+  SectionLabel,
+  TextAction,
+} from "./kit";
 import { QrCode } from "./QrCode";
+import { useTheme } from "./theme";
 
 interface RequestScreenProps {
   payee: Payee;
@@ -35,24 +44,27 @@ interface RequestScreenProps {
 }
 
 const REMITTANCE_KINDS: {
-  kind: RemittanceKind;
+  key: RemittanceKind;
   label: string;
   placeholder: string;
   hint: string;
 }[] = [
   {
-    kind: "text",
+    key: "text",
     label: "Text",
     placeholder: "What the payment is for",
     hint: "Unstructured text, up to 140 characters",
   },
   {
-    kind: "reference",
+    key: "reference",
     label: "Reference",
     placeholder: "RF18539007547034",
     hint: "Structured creditor reference, up to 35 characters",
   },
 ];
+
+/** Issues the request builder reports against the payee rather than the form. */
+const PAYEE_ELEMENTS: ReadonlySet<string> = new Set(["name", "iban", "bic"]);
 
 /**
  * Subject offered to destinations that have one, such as mail. Android reads
@@ -82,117 +94,177 @@ function buildSymbol(payload: string): SymbolResult {
 export function RequestScreen({ payee, onEditPayee, onScan }: RequestScreenProps) {
   const [form, setForm] = useState<RequestForm>(EMPTY_FORM);
   const { width } = useWindowDimensions();
+  const theme = useTheme();
 
+  const payeeIssues = validatePayee(payee);
+  const payeeReady = Object.keys(payeeIssues).length === 0;
+  // Stored settings are not validated when read, so a payee written under
+  // older rules can be present and still not encode. That is a problem to
+  // name, not a first run.
+  const payeeEmpty = payee.name === "" && payee.iban === "";
   const request = useMemo(() => buildPaymentRequest(payee, form), [payee, form]);
   const rendered = useMemo(
     () => (request.ok ? buildSymbol(request.payload) : undefined),
     [request],
   );
+  // Payee problems are what the set-up card is for, so only form problems are
+  // listed under the form.
+  const formIssues = request.ok
+    ? []
+    : request.issues.filter((issue) => !PAYEE_ELEMENTS.has(issue.element));
 
-  const remittanceKind = REMITTANCE_KINDS.find((entry) => entry.kind === form.remittanceKind);
-  const codeSize = Math.min(width - 64, 320);
+  const remittanceKind = REMITTANCE_KINDS.find((entry) => entry.key === form.remittanceKind);
+  const codeSize = Math.min(width - 104, 280);
 
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.header}>
-        <Text style={styles.title}>Request money</Text>
-        <Pressable onPress={onEditPayee} accessibilityRole="button">
-          <Text style={styles.link}>Payee settings</Text>
-        </Pressable>
-      </View>
+    <Screen>
+      <Header title="Request money" />
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Amount in euro</Text>
-        <TextInput
-          style={styles.input}
-          value={form.amount}
-          onChangeText={(amount) => setForm({ ...form, amount })}
-          placeholder="Leave empty to let the payer decide"
-          keyboardType="decimal-pad"
-          inputMode="decimal"
-          autoCorrect={false}
-        />
-      </View>
-
-      <View style={styles.field}>
-        <Text style={styles.label}>Remittance information</Text>
-        <View style={styles.segmented}>
-          {REMITTANCE_KINDS.map((entry) => {
-            const selected = entry.kind === form.remittanceKind;
-            return (
-              <Pressable
-                key={entry.kind}
-                style={[styles.segment, selected && styles.segmentSelected]}
-                onPress={() => setForm({ ...form, remittanceKind: entry.kind })}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-              >
-                <Text style={[styles.segmentLabel, selected && styles.segmentLabelSelected]}>
-                  {entry.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          value={form.remittance}
-          onChangeText={(remittance) => setForm({ ...form, remittance })}
-          placeholder={remittanceKind?.placeholder}
-          multiline
-          autoCapitalize={form.remittanceKind === "reference" ? "characters" : "sentences"}
-          autoCorrect={false}
-        />
-        <Text style={styles.hint}>
-          {remittanceKind?.hint}. A code carries one or the other, never both.
-        </Text>
-      </View>
-
-      {request.ok ? null : (
-        <View style={styles.issues}>
-          {request.issues.map((issue) => (
-            <Text key={`${issue.element}:${issue.message}`} style={styles.issue}>
-              {issue.element}: {issue.message}
-            </Text>
+      {payeeReady ? (
+        <Card>
+          <View style={styles.payeeRow}>
+            <View style={styles.payeeText}>
+              <SectionLabel>Paid to</SectionLabel>
+              <Text style={[styles.payeeName, { color: theme.text }]} numberOfLines={1}>
+                {payee.name}
+              </Text>
+              <Hint>{formatIbanForDisplay(payee.iban)}</Hint>
+            </View>
+            <TextAction label="Change" onPress={onEditPayee} accessibilityLabel="Change payee" />
+          </View>
+        </Card>
+      ) : payeeEmpty ? (
+        <Card tone="soft">
+          <CardTitle>Who gets paid?</CardTitle>
+          <Hint>
+            Add the name and IBAN a request is paid to. They stay on this device: the wallet has
+            no accounts and no backend.
+          </Hint>
+          <Button label="Add name and IBAN" onPress={onEditPayee} />
+        </Card>
+      ) : (
+        <Card tone="danger">
+          <CardTitle>Check the payee settings</CardTitle>
+          {Object.entries(payeeIssues).map(([field, message]) => (
+            <Problem key={field}>
+              {field}: {message}
+            </Problem>
           ))}
-        </View>
+          <Button label="Open payee settings" onPress={onEditPayee} />
+        </Card>
       )}
+
+      <Card>
+        <Field label="Amount in euro">
+          <AmountInput
+            value={form.amount}
+            onChangeText={(amount) => setForm({ ...form, amount })}
+          />
+        </Field>
+
+        <Field
+          label="Remittance information"
+          hint={`${remittanceKind?.hint ?? ""}. A code carries one or the other, never both.`}
+        >
+          <Segmented
+            options={REMITTANCE_KINDS}
+            value={form.remittanceKind}
+            onChange={(kind) => setForm({ ...form, remittanceKind: kind })}
+          />
+          <Input
+            value={form.remittance}
+            onChangeText={(remittance) => setForm({ ...form, remittance })}
+            placeholder={remittanceKind?.placeholder}
+            multiline
+            autoCapitalize={form.remittanceKind === "reference" ? "characters" : "sentences"}
+            autoCorrect={false}
+          />
+        </Field>
+
+        {formIssues.length === 0 ? null : (
+          <View style={styles.issues}>
+            {formIssues.map((issue) => (
+              <Problem key={`${issue.element}:${issue.message}`}>
+                {issue.element}: {issue.message}
+              </Problem>
+            ))}
+          </View>
+        )}
+      </Card>
 
       {request.ok && rendered !== undefined ? (
         "error" in rendered ? (
-          <View style={styles.issues}>
-            <Text style={styles.issue}>{rendered.error}</Text>
-          </View>
+          <Card tone="danger">
+            <Problem>{rendered.error}</Problem>
+          </Card>
         ) : (
-          <View style={styles.code}>
+          <>
             <QrCodeCard symbol={rendered.symbol} size={codeSize} />
-            <DecodedSummary payload={request.payload} data={request.data} />
-            {/* Keyed on the payload so an error from one request is not left
-                standing over the next one. */}
-            <ShareRequest key={request.payload} payload={request.payload} data={request.data} />
-          </View>
+            <Card>
+              <DecodedSummary payload={request.payload} data={request.data} />
+              {/* Keyed on the payload so an error from one request is not left
+                  standing over the next one. */}
+              <ShareRequest key={request.payload} payload={request.payload} data={request.data} />
+            </Card>
+          </>
         )
       ) : null}
 
-      <View style={styles.payAction}>
-        <Pressable onPress={onScan} accessibilityRole="button" style={styles.secondary}>
-          <Text style={styles.secondaryLabel}>Scan or paste a request</Text>
-        </Pressable>
-        <Text style={styles.hint}>
-          For paying someone: reads their code or shared link and shows what it says before
-          anything else happens.
-        </Text>
-      </View>
-    </ScrollView>
+      <Card tone="soft">
+        <CardTitle>Paying someone?</CardTitle>
+        <Hint>
+          Read their code or shared link. The wallet shows what it says before anything else
+          happens, then hands it to your banking app.
+        </Hint>
+        <Button label="Scan or paste a request" variant="secondary" onPress={onScan} />
+      </Card>
+    </Screen>
   );
 }
 
+/** The amount, large, with the currency sign fixed before it. */
+function AmountInput({
+  value,
+  onChangeText,
+}: {
+  value: string;
+  onChangeText: (value: string) => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.amount}>
+      <Text
+        style={[styles.amountSign, { color: value === "" ? theme.muted : theme.text }]}
+        accessible={false}
+        importantForAccessibility="no"
+      >
+        €
+      </Text>
+      <Input
+        style={styles.amountInput}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder="Payer decides"
+        keyboardType="decimal-pad"
+        inputMode="decimal"
+        autoCorrect={false}
+        accessibilityLabel="Amount in euro, leave empty to let the payer decide"
+      />
+    </View>
+  );
+}
+
+/**
+ * The code on a light card in both appearances: the symbol is dark modules on
+ * a light ground, and a scanner needs that contrast more than the page needs
+ * a matching card.
+ */
 function QrCodeCard({ symbol, size }: { symbol: QrSymbol; size: number }) {
   return (
-    <View style={styles.card}>
+    <View style={styles.codeCard}>
       <QrCode symbol={symbol} size={size} />
-      <Text style={styles.caption}>
-        QR version {symbol.version} of {EPC069_MAX_VERSION}, error correction level{" "}
+      <Text style={styles.codeCaption}>
+        EPC QR, version {symbol.version} of {EPC069_MAX_VERSION}, error correction{" "}
         {EPC069_ERROR_CORRECTION}
       </Text>
     </View>
@@ -232,22 +304,18 @@ function ShareRequest({ payload, data }: { payload: string; data: EpcQrData }) {
 
   return (
     <View style={styles.share}>
-      <Pressable
+      <Button
+        label="Share this request"
+        busy={sharing}
         onPress={() => {
           void onShare();
         }}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: sharing, busy: sharing }}
-        disabled={sharing}
-        style={[styles.primary, sharing ? styles.primaryDisabled : null]}
-      >
-        <Text style={styles.primaryLabel}>Share this request</Text>
-      </Pressable>
-      <Text style={styles.hint}>
+      />
+      <Hint>
         The link carries the same payload as the code, so a payer who opens it reads the request
         the code holds. Nothing is resolved over the network.
-      </Text>
-      {error === null ? null : <Text style={styles.issue}>{error}</Text>}
+      </Hint>
+      {error === null ? null : <Problem>{error}</Problem>}
     </View>
   );
 }
@@ -259,157 +327,63 @@ function ShareRequest({ payload, data }: { payload: string; data: EpcQrData }) {
 function DecodedSummary({ payload, data }: { payload: string; data: EpcQrData }) {
   return (
     <View style={styles.summary}>
-      {summarizeRequest(data).map((row) => (
-        <View key={row.label} style={styles.row}>
-          <Text style={styles.rowLabel}>{row.label}</Text>
-          <Text style={styles.rowValue}>{row.value}</Text>
-        </View>
-      ))}
-      <Text style={styles.hint}>
-        EPC069-12 version {data.version}, character set UTF-8,{" "}
-        {byteLength(payload, data.charset)} bytes of {EPC069_MAX_BYTES}
-      </Text>
+      <SectionLabel>What the code says</SectionLabel>
+      <Rows rows={summarizeRequest(data)} />
+      <Hint>
+        EPC069-12 version {data.version}, UTF-8, {byteLength(payload, data.charset)} of{" "}
+        {EPC069_MAX_BYTES} bytes.
+      </Hint>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-    gap: 24,
-  },
-  header: {
+  payeeRow: {
     flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
   },
-  title: {
-    fontSize: 26,
+  payeeText: {
+    flex: 1,
+    gap: 4,
+  },
+  payeeName: {
+    fontSize: 17,
     fontWeight: "600",
   },
-  link: {
-    fontSize: 15,
-    color: "#1b64c8",
+  amount: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
-  field: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 13,
+  amountSign: {
+    fontSize: 28,
     fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    opacity: 0.6,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: "#c7c7cc",
-    borderRadius: 8,
-    paddingHorizontal: 12,
+  amountInput: {
+    flex: 1,
+    fontSize: 28,
+    fontWeight: "600",
     paddingVertical: 10,
-    fontSize: 16,
-  },
-  multiline: {
-    minHeight: 72,
-    textAlignVertical: "top",
-  },
-  segmented: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  segment: {
-    borderWidth: 1,
-    borderColor: "#c7c7cc",
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  segmentSelected: {
-    backgroundColor: "#1b64c8",
-    borderColor: "#1b64c8",
-  },
-  segmentLabel: {
-    fontSize: 14,
-  },
-  segmentLabelSelected: {
-    color: "#ffffff",
-    fontWeight: "600",
-  },
-  hint: {
-    fontSize: 12,
-    opacity: 0.6,
-    lineHeight: 17,
   },
   issues: {
     gap: 4,
   },
-  issue: {
-    fontSize: 13,
-    color: "#b3261e",
-  },
-  code: {
-    gap: 20,
-  },
-  card: {
-    gap: 8,
+  codeCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 20,
     alignItems: "center",
+    gap: 10,
   },
-  caption: {
+  codeCaption: {
     fontSize: 12,
-    opacity: 0.6,
+    color: "#5A6A82",
   },
   summary: {
     gap: 8,
   },
   share: {
-    gap: 8,
-  },
-  primary: {
-    backgroundColor: "#1b64c8",
-    borderRadius: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  primaryDisabled: {
-    opacity: 0.4,
-  },
-  primaryLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#ffffff",
-  },
-  payAction: {
-    borderTopWidth: 1,
-    borderTopColor: "#e5e5ea",
-    paddingTop: 20,
-    gap: 8,
-  },
-  secondary: {
-    borderWidth: 1,
-    borderColor: "#1b64c8",
-    borderRadius: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  secondaryLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1b64c8",
-  },
-  row: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  rowLabel: {
-    width: 84,
-    fontSize: 13,
-    opacity: 0.6,
-  },
-  rowValue: {
-    flex: 1,
-    fontSize: 15,
+    gap: 10,
   },
 });
