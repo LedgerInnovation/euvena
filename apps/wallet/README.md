@@ -9,12 +9,14 @@ no accounts and no backend.
 
 ## Status
 
-The request flow is implemented. Enter an amount and remittance information to get an EPC069-12
-code with the decoded values printed beside it, and share that request through the share sheet of
-the operating system. On the paying side the app scans a code, reads a pasted request (including a
-payto link) or opens a shared link, shows what the request says and then hands it to a banking
-app. The screens follow the system appearance, light or dark, and a native build shows the logo
-on a splash screen while the settings are read. EN 18184 codes are not supported yet; see the
+The request flow is implemented. Enter an amount, and what the payment is for when there is one,
+to get an EPC069-12 code, then share that request through the share sheet of the operating
+system. The values decoded back out of the code are a tap away below it. On the paying side the
+app scans a code, reads a pasted request (including a payto link) or opens a shared link, shows
+what the request says and then hands it to a banking app. A bar at the foot of the screen switches
+between requesting, paying and the history; the gear in the header opens the settings, which hold
+the payees. The screens follow the system appearance, light or dark, and a native build shows the
+logo on a splash screen while the settings are read. EN 18184 codes are not supported yet; see the
 checklist on the tracking issue.
 
 ## Keeping a request
@@ -34,18 +36,18 @@ restarts, so a failed read never turns into a lost list.
 
 ## The request flow
 
-Payee name, IBAN and optional BIC are settings on the device. There is no account to register and
-no interface is called to verify them. The first run opens the payee form because a code cannot be
-built without an IBAN. The device can hold up to 20 payees, one of them active: requests are built
-for the active one, and the request screen names it and offers switching before composing. A payee
-just saved becomes the active one. Each payee passes the same encoder-backed validation, so a payee
-that saved always encodes. Settings written by an earlier version, which held a single payee, are
-read as a book of one.
+Payee name, IBAN and optional BIC are settings on the device, listed under Settings. There is no
+account to register and no interface is called to verify them. The first run opens the payee form
+because a code cannot be built without an IBAN. The device can hold up to 20 payees, one of them
+active: requests are built for the active one, and the request screen names it and offers
+switching before composing. A payee just saved becomes the active one. Each payee passes the same
+encoder-backed validation, so a payee that saved always encodes. Settings written by an earlier
+version, which held a single payee, are read as a book of one.
 
 The amount is optional. Leaving it empty omits element 8 of the payload, which lets the payer
-enter the amount in their own banking app. Remittance information goes into either the structured
-reference element or the unstructured text element, never both, so the form offers a choice of
-which one the field fills.
+enter the amount in their own banking app. What the payment is for, folded away until wanted, goes
+into either the structured reference element or the unstructured text element, never both, so the
+field offers a choice of which one it fills.
 
 The code is rendered at error correction level M and never above version 13, as EPC069-12
 requires. A conformant payload is at most 331 bytes, which is exactly the byte-mode capacity of a
@@ -53,8 +55,9 @@ version 13 symbol at level M, so a valid request always fits. The payload is pla
 byte-mode segment holding its UTF-8 bytes rather than split into shorter numeric and alphanumeric
 segments, because byte mode is what the character set element of the payload describes.
 
-The values shown below the code are decoded back out of the payload rather than read from the
-form, so what the payer reads is what a scanner reads.
+The values shown with the code, a tap away on the request screen and open in the history, are
+decoded back out of the payload rather than read from the form, so what the payer reads is what a
+scanner reads.
 
 ## Sharing a request
 
@@ -193,7 +196,7 @@ pnpm --filter @euvena/wallet build   # bundles the JS, no native toolchain requi
 
 | Path | Purpose |
 | --- | --- |
-| `App.tsx` | Root component, loads the payee settings, opens incoming links and switches between the screens |
+| `App.tsx` | Root component, loads the payee settings, opens incoming links, holds the tab bar and switches between the screens |
 | `plugins/` | Config plugin that keeps a restored Android activity from reopening its launch link |
 | `src/epc/` | Form state to EPC069-12 payload, the link form of a request, plus the display formatting |
 | `src/qr/` | QR symbol construction and its SVG path |

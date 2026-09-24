@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { BackHandler, StyleSheet, Text, View } from "react-native";
 
 import { summarizeRequest } from "../epc/request";
 import { readPaymentRequest, type ReadRequestResult } from "../epc/scan";
@@ -20,7 +20,10 @@ interface HistoryScreenProps {
   loadFailed: boolean;
   /** Rejects when the history could not be written. */
   onMark: (id: string, done: boolean) => Promise<void>;
-  onBack: () => void;
+  /** Bumped when the history is asked for again while open, to return to the list. */
+  listRequested: number;
+  /** Whether the history is the tab on screen. It stays mounted while hidden. */
+  active: boolean;
 }
 
 /**
@@ -30,8 +33,27 @@ interface HistoryScreenProps {
  * screen showed when it was built. The done mark is the payee's own
  * bookkeeping: the wallet never learns whether anything was paid.
  */
-export function HistoryScreen({ entries, loadFailed, onMark, onBack }: HistoryScreenProps) {
+export function HistoryScreen({
+  entries,
+  loadFailed,
+  onMark,
+  listRequested,
+  active,
+}: HistoryScreenProps) {
   const [openId, setOpenId] = useState<string | null>(null);
+  useEffect(() => {
+    setOpenId(null);
+  }, [listRequested]);
+  // The system back on Android returns from an open entry to the list, only
+  // while the history is the tab on screen.
+  useEffect(() => {
+    if (!active || openId === null) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      setOpenId(null);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [active, openId]);
   const [markFailedId, setMarkFailedId] = useState<string | null>(null);
 
   // Decoded once per list, not once per render of every card.
@@ -55,7 +77,7 @@ export function HistoryScreen({ entries, loadFailed, onMark, onBack }: HistorySc
     // Keyed apart from the list, so the detail does not inherit its scroll offset.
     return (
       <Screen key="detail">
-        <Header title="Kept request" action={{ label: "History", onPress: () => setOpenId(null) }} />
+        <Header title="Kept request" back={{ label: "History", onPress: () => setOpenId(null) }} />
         <Card>
           <EntryStatus
             entry={open}
@@ -80,8 +102,7 @@ export function HistoryScreen({ entries, loadFailed, onMark, onBack }: HistorySc
     <Screen key="list">
       <Header
         title="History"
-        subtitle="Requests kept on this device, newest first. A mark is your own note: the wallet cannot know whether a request was paid."
-        action={{ label: "Request money", onPress: onBack }}
+        subtitle="Requests kept on this device, newest first. A done mark is your own note."
       />
 
       {loadFailed ? (

@@ -35,8 +35,7 @@ interface RequestScreenProps {
   onEditPayee: () => void;
   /** Opens the form on the active payee, for one that is present but does not encode. */
   onRepairPayee: () => void;
-  onScan: () => void;
-  onHistory: () => void;
+  onSettings: () => void;
   /** Keeps a composed request in the history. Rejects when it could not be written. */
   onKeep: (payload: string) => Promise<void>;
 }
@@ -51,13 +50,13 @@ const REMITTANCE_KINDS: {
     key: "text",
     label: "Text",
     placeholder: "What the payment is for",
-    hint: "Unstructured text, up to 140 characters",
+    hint: "Up to 140 characters of text",
   },
   {
     key: "reference",
     label: "Reference",
     placeholder: "RF18539007547034",
-    hint: "Structured creditor reference, up to 35 characters",
+    hint: "A structured creditor reference, up to 35 characters",
   },
 ];
 
@@ -77,11 +76,14 @@ export function RequestScreen({
   payeeCount,
   onEditPayee,
   onRepairPayee,
-  onScan,
-  onHistory,
+  onSettings,
   onKeep,
 }: RequestScreenProps) {
   const [form, setForm] = useState<RequestForm>(EMPTY_FORM);
+  // The remittance fields stay folded until wanted, so a plain amount request
+  // is one field. A draft that already has text keeps them open.
+  const [remittanceOpen, setRemittanceOpen] = useState(false);
+  const showRemittance = remittanceOpen || form.remittance !== "";
   const theme = useTheme();
 
   const payeeIssues = validatePayee(payee);
@@ -101,7 +103,10 @@ export function RequestScreen({
 
   return (
     <Screen>
-      <Header title="Request money" action={{ label: "History", onPress: onHistory }} />
+      <Header
+        title="Request money"
+        action={{ label: "Settings", icon: "settings-outline", onPress: onSettings }}
+      />
 
       {payeeReady ? (
         <Card>
@@ -149,24 +154,29 @@ export function RequestScreen({
           />
         </Field>
 
-        <Field
-          label="Remittance information"
-          hint={`${remittanceKind?.hint ?? ""}. A code carries one or the other, never both.`}
-        >
-          <Segmented
-            options={REMITTANCE_KINDS}
-            value={form.remittanceKind}
-            onChange={(kind) => setForm({ ...form, remittanceKind: kind })}
+        {showRemittance ? (
+          <Field label="What it is for" hint={remittanceKind?.hint}>
+            <Segmented
+              options={REMITTANCE_KINDS}
+              value={form.remittanceKind}
+              onChange={(kind) => setForm({ ...form, remittanceKind: kind })}
+            />
+            <Input
+              value={form.remittance}
+              onChangeText={(remittance) => setForm({ ...form, remittance })}
+              placeholder={remittanceKind?.placeholder}
+              multiline
+              autoCapitalize={form.remittanceKind === "reference" ? "characters" : "sentences"}
+              autoCorrect={false}
+            />
+          </Field>
+        ) : (
+          <TextAction
+            label="Add what it is for"
+            onPress={() => setRemittanceOpen(true)}
+            accessibilityLabel="Add what the payment is for, a text or a reference"
           />
-          <Input
-            value={form.remittance}
-            onChangeText={(remittance) => setForm({ ...form, remittance })}
-            placeholder={remittanceKind?.placeholder}
-            multiline
-            autoCapitalize={form.remittanceKind === "reference" ? "characters" : "sentences"}
-            autoCorrect={false}
-          />
-        </Field>
+        )}
 
         {formIssues.length === 0 ? null : (
           <View style={styles.issues}>
@@ -180,17 +190,8 @@ export function RequestScreen({
       </Card>
 
       {request.ok ? (
-        <ComposedRequest payload={request.payload} data={request.data} onKeep={onKeep} />
+        <ComposedRequest payload={request.payload} data={request.data} onKeep={onKeep} compact />
       ) : null}
-
-      <Card tone="soft">
-        <CardTitle>Paying someone?</CardTitle>
-        <Hint>
-          Read their code or shared link. The wallet shows what it says before anything else
-          happens, then hands it to your banking app.
-        </Hint>
-        <Button label="Scan or paste a request" variant="secondary" onPress={onScan} />
-      </Card>
     </Screen>
   );
 }
