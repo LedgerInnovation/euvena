@@ -84,9 +84,20 @@ describe("payee book", () => {
     }
   });
 
-  it("drops malformed payees and clamps the active index", () => {
+  it("keeps the active payee when malformed entries before it are dropped", () => {
+    const stored = JSON.stringify({ payees: [7, payee, null, club, shop], active: 3 });
+    expect(parsePayeeBook(stored)).toEqual({ payees: [payee, club, shop], active: 1 });
+    const gone = JSON.stringify({ payees: [payee, { ...club, iban: "" }, shop], active: 1 });
+    expect(parsePayeeBook(gone)).toEqual({ payees: [payee, shop], active: 0 });
+  });
+
+  it("drops malformed payees and falls back when the active index points at nothing", () => {
     const stored = JSON.stringify({ payees: [payee, 7, null, club], active: 9 });
-    expect(parsePayeeBook(stored)).toEqual({ payees: [payee, club], active: 1 });
+    expect(parsePayeeBook(stored)).toEqual({ payees: [payee, club], active: 0 });
+    expect(parsePayeeBook(JSON.stringify({ payees: [payee, club], active: 2 }))).toEqual({
+      payees: [payee, club],
+      active: 0,
+    });
     expect(parsePayeeBook(JSON.stringify({ payees: [payee], active: -3 }))).toEqual({
       payees: [payee],
       active: 0,
@@ -99,9 +110,11 @@ describe("payee book", () => {
 
   it("caps a stored book at the limit", () => {
     const payees = Array.from({ length: PAYEE_LIMIT + 3 }, (_, i) => ({ ...club, name: `${i}` }));
-    expect(parsePayeeBook(JSON.stringify({ payees, active: 0 })).payees).toHaveLength(
-      PAYEE_LIMIT,
-    );
+    const last = parsePayeeBook(JSON.stringify({ payees, active: PAYEE_LIMIT - 1 }));
+    expect(last.payees).toHaveLength(PAYEE_LIMIT);
+    expect(last.active).toBe(PAYEE_LIMIT - 1);
+    // An active entry beyond the limit is cut, so the book falls back.
+    expect(parsePayeeBook(JSON.stringify({ payees, active: PAYEE_LIMIT })).active).toBe(0);
   });
 
   it("stores only the fields it knows", () => {

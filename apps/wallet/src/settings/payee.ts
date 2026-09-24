@@ -63,17 +63,21 @@ export function parsePayeeBook(stored: string | null): PayeeBook {
     return single === null || single.iban === "" ? EMPTY_BOOK : { payees: [single], active: 0 };
   }
 
+  const storedActive =
+    typeof record.active === "number" && Number.isInteger(record.active) ? record.active : -1;
   const payees: Payee[] = [];
-  for (const item of record.payees) {
+  // The active index counts stored entries, so it is remapped as malformed
+  // ones are dropped. It falls back to the first payee only when the active
+  // entry itself is dropped, cut by the limit, or the index points at nothing.
+  let active = 0;
+  for (const [at, item] of record.payees.entries()) {
     const payee = readPayee(item);
     // A payee without an IBAN could never have been saved, so it is not one.
-    if (payee !== null && payee.iban !== "") payees.push(payee);
+    if (payee === null || payee.iban === "") continue;
+    payees.push(payee);
+    if (at === storedActive) active = payees.length - 1;
     if (payees.length === PAYEE_LIMIT) break;
   }
-  const active =
-    typeof record.active === "number" && Number.isInteger(record.active)
-      ? Math.min(Math.max(record.active, 0), Math.max(payees.length - 1, 0))
-      : 0;
   return { payees, active };
 }
 
