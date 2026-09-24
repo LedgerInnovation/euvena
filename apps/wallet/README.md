@@ -13,7 +13,9 @@ The request flow is implemented. Enter an amount and remittance information to g
 code with the decoded values printed beside it, and share that request through the share sheet of
 the operating system. On the paying side the app scans a code, reads a pasted request (including a
 payto link) or opens a shared link, shows what the request says and then hands it to a banking
-app. EN 18184 codes are not supported yet; see the checklist on the tracking issue.
+app. The screens follow the system appearance, light or dark, and a native build shows the logo
+on a splash screen while the settings are read. EN 18184 codes are not supported yet; see the
+checklist on the tracking issue.
 
 ## The request flow
 
@@ -177,7 +179,7 @@ pnpm --filter @euvena/wallet build   # bundles the JS, no native toolchain requi
 | `src/epc/` | Form state to EPC069-12 payload, the link form of a request, plus the display formatting |
 | `src/qr/` | QR symbol construction and its SVG path |
 | `src/settings/` | Payee settings, on-device only |
-| `src/ui/` | Screens and the QR view |
+| `src/ui/` | Screens, the building blocks they share (`kit.tsx`), the palette for both appearances (`theme.ts`) and the QR view |
 | `metro.config.js` | Workspace-aware resolver so `packages/*` resolve and hot-reload |
 | `test/` | Plain-TypeScript tests; the React Native surface is covered by typecheck and lint |
 
