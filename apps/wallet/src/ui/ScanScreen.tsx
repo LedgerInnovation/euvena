@@ -6,6 +6,8 @@ import { type EpcQrData } from "@euvena/qr";
 
 import { buildPaytoUri, handoffFields, type HandoffField } from "../epc/payto";
 import { summarizeRequest } from "../epc/request";
+import { describeRejection, type Rejection } from "../i18n";
+import { useLocale } from "../i18n/context";
 import {
   openedRequestStep,
   readPastedRequest,
@@ -30,9 +32,6 @@ import {
 } from "./kit";
 import { useTheme } from "./theme";
 
-const WAITING_NOTICE =
-  "Another request was opened. The one below is still the one you were looking at.";
-
 /** How long a newly shown review ignores presses on its handoff actions. */
 const ARM_DELAY_MS = 500;
 
@@ -54,6 +53,7 @@ interface ScanScreenProps {
  * for the payer.
  */
 export function ScanScreen({ opened }: ScanScreenProps) {
+  const { strings } = useLocale();
   const [result, setResult] = useState<ReadRequestResult | null>(opened?.result ?? null);
   // The last opened request this screen has dealt with, whether it showed it,
   // found it identical to what was shown or the payer moved past it.
@@ -75,9 +75,10 @@ export function ScanScreen({ opened }: ScanScreenProps) {
   const waiting = step === "hold" ? unhandled : null;
 
   const waitingId = waiting?.id ?? null;
+  const waitingNotice = strings.scan.waiting;
   useEffect(() => {
-    if (waitingId !== null) AccessibilityInfo.announceForAccessibility(WAITING_NOTICE);
-  }, [waitingId]);
+    if (waitingId !== null) AccessibilityInfo.announceForAccessibility(waitingNotice);
+  }, [waitingId, waitingNotice]);
 
   const show = (next: OpenedRequest) => {
     setResult(next.result);
@@ -94,18 +95,14 @@ export function ScanScreen({ opened }: ScanScreenProps) {
   return (
     <Screen>
       <Header
-        title={result?.ok === true ? "Review request" : "Pay a request"}
-        subtitle={
-          result?.ok === true
-            ? "Nothing has been paid or sent yet. Handing it to a banking app waits for you."
-            : "Read a code or a shared request. Reading pays nothing and sends nothing."
-        }
+        title={result?.ok === true ? strings.scan.reviewTitle : strings.scan.title}
+        subtitle={result?.ok === true ? strings.scan.reviewSubtitle : strings.scan.subtitle}
       />
 
       {waiting === null ? null : (
         <Card tone="soft">
-          <Problem>{WAITING_NOTICE}</Problem>
-          <Button label="Show the new request" variant="secondary" onPress={() => show(waiting)} />
+          <Problem>{waitingNotice}</Problem>
+          <Button label={strings.scan.showNew} variant="secondary" onPress={() => show(waiting)} />
         </Card>
       )}
 
@@ -135,6 +132,7 @@ export function ScanScreen({ opened }: ScanScreenProps) {
 function CameraSurface({ onRead }: { onRead: (text: string) => void }) {
   const [permission, requestPermission] = useCameraPermissions();
   const theme = useTheme();
+  const { strings } = useLocale();
 
   // The permission module has not answered yet. The paste path works meanwhile.
   if (permission === null) {
@@ -147,18 +145,15 @@ function CameraSurface({ onRead }: { onRead: (text: string) => void }) {
         {permission.canAskAgain ? (
           <>
             <Button
-              label="Turn on the camera"
+              label={strings.scan.turnOnCamera}
               onPress={() => {
                 void requestPermission();
               }}
             />
-            <Hint center>The camera is only used to read codes on this screen.</Hint>
+            <Hint center>{strings.scan.cameraOnlyHere}</Hint>
           </>
         ) : (
-          <Hint center>
-            The camera is switched off for this app in the system settings. Pasting below still
-            works.
-          </Hint>
+          <Hint center>{strings.scan.cameraOff}</Hint>
         )}
       </View>
     );
@@ -175,7 +170,7 @@ function CameraSurface({ onRead }: { onRead: (text: string) => void }) {
         />
         <Viewfinder />
       </View>
-      <Hint center>Point the camera at a payment QR code.</Hint>
+      <Hint center>{strings.scan.pointCamera}</Hint>
     </View>
   );
 }
@@ -194,21 +189,22 @@ function Viewfinder() {
 
 function PasteEntry({ onRead }: { onRead: (text: string) => void }) {
   const [pasted, setPasted] = useState("");
+  const { strings } = useLocale();
   const empty = pasted.trim() === "";
 
   return (
     <Card>
-      <Field label="Or paste a request">
+      <Field label={strings.scan.pasteLabel}>
         <Input
           value={pasted}
           onChangeText={setPasted}
-          placeholder="A euvena:// or payto:// link, or the text of a code"
+          placeholder={strings.scan.pastePlaceholder}
           autoCapitalize="none"
           autoCorrect={false}
           multiline
         />
       </Field>
-      <Button label="Read what was pasted" disabled={empty} onPress={() => onRead(pasted)} />
+      <Button label={strings.scan.readPasted} disabled={empty} onPress={() => onRead(pasted)} />
     </Card>
   );
 }
@@ -218,24 +214,19 @@ function PasteEntry({ onRead }: { onRead: (text: string) => void }) {
  * prints beside a code it builds.
  */
 function ReviewPanel({ data, onReset }: { data: EpcQrData; onReset: () => void }) {
+  const { strings, tag } = useLocale();
   return (
     <>
       <Card>
-        <CardTitle>What the code says</CardTitle>
-        <Rows rows={summarizeRequest(data)} />
-        <Hint>
-          Values read from the code itself. Check the name and IBAN with whoever is asking to be
-          paid; the code cannot do that for you.
-        </Hint>
+        <CardTitle>{strings.composed.whatTheCodeSays}</CardTitle>
+        <Rows rows={summarizeRequest(data, strings, tag)} />
+        <Hint>{strings.scan.reviewHint}</Hint>
       </Card>
       <HandoffActions data={data} />
-      <Button label="Read another" variant="ghost" onPress={onReset} />
+      <Button label={strings.scan.readAnother} variant="ghost" onPress={onReset} />
     </>
   );
 }
-
-const NO_HANDLER_NOTICE =
-  "No installed app took this request. Banks have not agreed on a common link format yet, so copy the details into your banking app instead.";
 
 /**
  * Hands the reviewed request onward. The primary action fires the payto URI
@@ -245,6 +236,7 @@ const NO_HANDLER_NOTICE =
  * prefilled and transfer forms are filled field by field.
  */
 function HandoffActions({ data }: { data: EpcQrData }) {
+  const { strings } = useLocale();
   const [opening, setOpening] = useState(false);
   const [noHandler, setNoHandler] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -276,79 +268,74 @@ function HandoffActions({ data }: { data: EpcQrData }) {
     if (!armed) return;
     try {
       await Clipboard.setStringAsync(field.value);
-      setCopied(field.label);
+      setCopied(field.key);
     } catch {
       setCopied(null);
     }
   };
 
   const fields = handoffFields(data);
-  const reference = fields.find((field) => field.label === "Reference");
+  const reference = fields.find((field) => field.key === "reference");
   const rest = reference === undefined ? fields : fields.filter((field) => field !== reference);
 
-  const row = (field: HandoffField): RowItem => ({
-    label: field.label,
-    value: field.value,
-    singleLine: true,
-    trailing: (
-      <TextAction
-        label={copied === field.label ? "Copied" : "Copy"}
-        onPress={() => {
-          void onCopy(field);
-        }}
-        accessibilityLabel={
-          copied === field.label ? `${field.label} copied` : `Copy ${field.label}`
-        }
-      />
-    ),
-  });
+  const row = (field: HandoffField): RowItem => {
+    const label = strings.rows[field.key];
+    return {
+      label,
+      value: field.value,
+      singleLine: true,
+      trailing: (
+        <TextAction
+          label={copied === field.key ? strings.common.copied : strings.common.copy}
+          onPress={() => {
+            void onCopy(field);
+          }}
+          accessibilityLabel={
+            copied === field.key ? strings.common.copiedOf(label) : strings.common.copyOf(label)
+          }
+        />
+      ),
+    };
+  };
 
   return (
     <Card>
-      <CardTitle>Pay it</CardTitle>
+      <CardTitle>{strings.scan.payIt}</CardTitle>
       {/* The URI cannot carry the structured reference, so its warning and its
           copy action stand BEFORE the launch action: the payer must be able to
           take the reference along before leaving for the banking app, not
           discover its absence after the transfer form is already open. */}
       {reference === undefined ? null : (
         <View style={styles.referenceWarning}>
-          <Problem>
-            The link cannot carry the structured reference. Copy it first and paste it into the
-            reference field of your banking app.
-          </Problem>
+          <Problem>{strings.scan.referenceWarning}</Problem>
           <Rows rows={[row(reference)]} />
         </View>
       )}
       <Button
-        label="Open your banking app"
+        label={strings.scan.openBankingApp}
         busy={opening}
         onPress={() => {
           void onOpen();
         }}
       />
-      {noHandler ? <Problem>{NO_HANDLER_NOTICE}</Problem> : null}
-      <SectionLabel>Copy into a transfer form</SectionLabel>
+      {noHandler ? <Problem>{strings.scan.noHandler}</Problem> : null}
+      <SectionLabel>{strings.scan.copyInto}</SectionLabel>
       <Rows rows={rest.map(row)} />
-      <Hint>
-        The link is a payto address built from the code. If no app on this device answers it,
-        your banking app may still scan these codes directly.
-      </Hint>
+      <Hint>{strings.scan.handoffHint}</Hint>
     </Card>
   );
 }
 
-function RejectionPanel({ reason, onReset }: { reason: string; onReset: () => void }) {
+function RejectionPanel({ reason, onReset }: { reason: Rejection; onReset: () => void }) {
+  const { strings } = useLocale();
   return (
     <>
       <Card tone="danger">
-        <CardTitle>Nothing usable was read</CardTitle>
-        <Problem>{reason}</Problem>
-        <Hint>
-          A request that fails a check is not shown at all: a partial reading could direct money
-          to the wrong account.
-        </Hint>
+        <CardTitle>{strings.scan.nothingRead}</CardTitle>
+        <Problem>{describeRejection(reason, strings)}</Problem>
+        <Hint>{strings.scan.rejectionHint}</Hint>
       </Card>
-      <Button label="Try again" variant="secondary" onPress={onReset} />
+      <Button label={strings.scan.tryAgain} variant="secondary" onPress={onReset} />
     </>
   );
 }

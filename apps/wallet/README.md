@@ -15,10 +15,29 @@ system. The values decoded back out of the code are a tap away below it. On the 
 app scans a code, reads a pasted request (including a payto link) or opens a shared link, shows
 what the request says and then hands it to a banking app. A bar at the foot of the screen switches
 between requesting, paying and the history; the gear in the header opens the settings, which hold
-the payees and move the data to another device as one file. The screens follow the system
-appearance, light or dark, and a native build shows the
-logo on a splash screen while the settings are read. EN 18184 codes are not supported yet; see the
-checklist on the tracking issue.
+the payees, the appearance, the language and the file that moves the data to another device. The
+wallet speaks English, German, French, Spanish, Italian, Dutch and Polish, and follows the device
+language until one is chosen by hand. The screens follow the system appearance, light or dark, or
+the one chosen in the settings, and a native build shows the logo on a splash screen while the
+settings are read. EN 18184 codes are not supported yet; see the checklist on the tracking issue.
+
+## Languages and appearance
+
+Every piece of wording is one typed shape under `src/i18n`, and each language is a value of that
+shape, so a missing translation is a type error at build time rather than a blank label on a
+device. Wording that takes values is a function, so each language orders its sentences its own
+way, Polish counts its three plural forms and lists join with their own "and". The device
+language decides through `expo-localization` until a language is chosen in the settings, and the
+choice survives restarts beside the payees. Amounts and dates on screen are written the way the
+chosen language writes them; the amount inside a code is not touched, since EPC069-12 fixes it.
+
+The readers under `src/epc` return what went wrong as a code and the elements concerned, not as
+a sentence, and the screen words it in the language in force. Issues the encoder raises against
+the request form are worded the same way, so nothing the codec says and nothing typed is echoed.
+The device's own regional tag is used for money
+and dates whenever it speaks the chosen language, so an Irish or Austrian reader keeps their
+regional shapes. The chosen appearance is handed to the platform as well, so alerts, the keyboard
+and the sheets the wallet opens follow it. Right-to-left layout is out of scope.
 
 ## Keeping a request
 
@@ -220,8 +239,9 @@ pnpm --filter @euvena/wallet build   # bundles the JS, no native toolchain requi
 | `App.tsx` | Root component, loads the payee settings, opens incoming links, holds the tab bar and switches between the screens |
 | `plugins/` | Config plugin that keeps a restored Android activity from reopening its launch link |
 | `src/epc/` | Form state to EPC069-12 payload, the link form of a request, plus the display formatting |
+| `src/i18n/` | The typed dictionary shape, one file per language, language resolution and number and date formatting |
 | `src/qr/` | QR symbol construction and its SVG path |
-| `src/settings/` | Payee settings, the request history and the data file that moves them, on-device only |
+| `src/settings/` | Payee settings, the appearance and language preferences, the request history and the data file that moves them, on-device only |
 | `src/ui/` | Screens, the building blocks they share (`kit.tsx`), the palette for both appearances (`theme.ts`), the QR view and the file share and pick (`dataFile.ts`) |
 | `metro.config.js` | Workspace-aware resolver so `packages/*` resolve and hot-reload |
 | `test/` | Plain-TypeScript tests; the React Native surface is covered by typecheck and lint |

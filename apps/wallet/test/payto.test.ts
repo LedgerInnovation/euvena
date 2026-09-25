@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { describeRejection, en } from "../src/i18n";
+
 import { buildPaytoUri, handoffFields, parsePaytoUri } from "../src/epc/payto";
 import { buildPaymentRequest, type Payee, type RequestForm } from "../src/epc/request";
 import { readPastedRequest, readPaymentRequest } from "../src/epc/scan";
@@ -12,7 +14,7 @@ const payee: Payee = {
 
 /** Decoded data the way the review screen holds it, via the real builder. */
 function dataFor(form: RequestForm, withPayee: Payee = payee) {
-  const request = buildPaymentRequest(withPayee, form);
+  const request = buildPaymentRequest(withPayee, form, en);
   if (!request.ok) throw new Error(`the form did not build: ${JSON.stringify(request.issues)}`);
   return request.data;
 }
@@ -92,10 +94,10 @@ describe("handoffFields", () => {
     });
 
     expect(handoffFields(data)).toEqual([
-      { label: "Name", value: "Wikimedia Foerdergesellschaft" },
-      { label: "IBAN", value: "DE33100205000001194700" },
-      { label: "Amount", value: "13.05" },
-      { label: "Reference", value: "RF18539007547034" },
+      { key: "payee", value: "Wikimedia Foerdergesellschaft" },
+      { key: "iban", value: "DE33100205000001194700" },
+      { key: "amount", value: "13.05" },
+      { key: "reference", value: "RF18539007547034" },
     ]);
   });
 
@@ -105,9 +107,9 @@ describe("handoffFields", () => {
       { ...payee, bic: "BFSWDE33BER" },
     );
 
-    const labels = handoffFields(data).map((field) => field.label);
+    const labels = handoffFields(data).map((field) => field.key);
 
-    expect(labels).toContain("BIC");
+    expect(labels).toContain("bic");
     expect(labels).not.toContain("Amount");
     expect(labels).not.toContain("Text");
   });
@@ -120,7 +122,7 @@ const NAME = "receiver-name=Wikimedia%20Foerdergesellschaft";
 function reasonFor(uri: string): string {
   const read = readPastedRequest(uri);
   if (read.ok) throw new Error(`expected a rejection for ${uri}`);
-  return read.reason;
+  return describeRejection(read.reason, en);
 }
 
 describe("reading a payto link", () => {
@@ -169,7 +171,7 @@ describe("reading a payto link", () => {
     // That wallet would skip "AMOUNT" and pay nothing fixed, or pay "amount".
     for (const query of [`${NAME}&AMOUNT=EUR:1000`, "Receiver-Name=Mallory"]) {
       expect(reasonFor(`payto://iban/${IBAN}?${query}`)).toBe(
-        "the payto link carries an option this wallet does not know",
+        "The payto link carries an option this wallet does not know.",
       );
     }
   });
@@ -180,10 +182,10 @@ describe("reading a payto link", () => {
       request: { amount: "10.50" },
     });
     expect(reasonFor(`payto://iban/${IBAN}?${NAME}&amount=EUR:10.505`)).toBe(
-      "the payto link carries an amount this wallet cannot use",
+      "The payto link carries an amount this wallet cannot use.",
     );
     expect(reasonFor(`payto://iban/${IBAN}?${NAME}&amount=EUR:10.000000000`)).toBe(
-      "the payto link carries an amount this wallet cannot use",
+      "The payto link carries an amount this wallet cannot use.",
     );
   });
 
@@ -207,7 +209,7 @@ describe("reading a payto link", () => {
       "10",
     ]) {
       expect(reasonFor(`payto://iban/${IBAN}?${NAME}&amount=${amount}`)).toBe(
-        "the payto link carries an amount this wallet cannot use",
+        "The payto link carries an amount this wallet cannot use.",
       );
     }
   });
@@ -217,30 +219,30 @@ describe("reading a payto link", () => {
     // hundredfold sum and "1.500,00" as 1.50.
     for (const amount of ["EUR:12,50", "EUR:1%2C50", "EUR:1,000.50", "EUR:1.500,00", "EUR:,"]) {
       expect(reasonFor(`payto://iban/${IBAN}?${NAME}&amount=${amount}`)).toBe(
-        "the payto link carries an amount this wallet cannot use",
+        "The payto link carries an amount this wallet cannot use.",
       );
     }
   });
 
   it("refuses another currency", () => {
     expect(reasonFor(`payto://iban/${IBAN}?${NAME}&amount=CHF:10`)).toBe(
-      "the payto link asks for a currency other than euro",
+      "The payto link asks for a currency other than euro.",
     );
   });
 
   it("refuses an option given twice", () => {
     // Two readers resolving the repeat differently would pay different sums.
     expect(reasonFor(`payto://iban/${IBAN}?${NAME}&amount=EUR:1&amount=EUR:1000`)).toBe(
-      "the payto link repeats an option",
+      "The payto link repeats an option.",
     );
     expect(reasonFor(`payto://iban/${IBAN}?${NAME}&receiver-name=Mallory`)).toBe(
-      "the payto link repeats an option",
+      "The payto link repeats an option.",
     );
   });
 
   it("refuses an end-to-end identifier rather than dropping it", () => {
     expect(reasonFor(`payto://iban/${IBAN}?${NAME}&instruction=E2E-4711`)).toBe(
-      "the payto link carries an end-to-end identifier, which this wallet cannot pass on",
+      "The payto link carries an end-to-end identifier, which this wallet cannot pass on.",
     );
   });
 
@@ -251,7 +253,7 @@ describe("reading a payto link", () => {
       "bic=BFSWDE33BER",
     ]) {
       expect(reasonFor(`payto://iban/${IBAN}?${NAME}&${option}`)).toBe(
-        "the payto link carries an option this wallet does not know",
+        "The payto link carries an option this wallet does not know.",
       );
     }
   });
@@ -282,7 +284,7 @@ describe("reading a payto link", () => {
   it("requires a beneficiary name", () => {
     for (const query of ["", "?amount=EUR:5", "?receiver-name="]) {
       expect(reasonFor(`payto://iban/${IBAN}${query}`)).toBe(
-        "the payto link names no beneficiary",
+        "The payto link names no beneficiary.",
       );
     }
   });
@@ -290,7 +292,7 @@ describe("reading a payto link", () => {
   it("refuses a name that shows nothing", () => {
     for (const name of ["+%20", "%E2%80%8B", "%20%E2%80%8B%EF%BB%BF%20"]) {
       expect(reasonFor(`payto://iban/${IBAN}?receiver-name=${name}&amount=EUR:5`)).toBe(
-        "the payto link is not a valid payment request: the beneficiary name failed the checks",
+        "The payto link is not a valid payment request: the beneficiary name failed the checks.",
       );
     }
   });
@@ -312,7 +314,7 @@ describe("reading a payto link", () => {
       `payto://iban:443/${IBAN}?${NAME}`,
       `payto://ibanx/${IBAN}?${NAME}`,
     ]) {
-      expect(reasonFor(uri)).toBe("the payto link is for an account type other than an IBAN");
+      expect(reasonFor(uri)).toBe("The payto link is for an account type other than an IBAN.");
     }
   });
 
@@ -332,16 +334,16 @@ describe("reading a payto link", () => {
       `payto://iban/DE33%201002%200500%200001%201947%2000?${NAME}`,
       `payto://iban/DE33%0A100205000001194700?${NAME}`,
     ]) {
-      expect(reasonFor(uri)).toBe("the payto link is malformed");
+      expect(reasonFor(uri)).toBe("The payto link is malformed.");
     }
   });
 
   it("refuses a damaged escape rather than throwing", () => {
     expect(reasonFor(`payto://iban/${IBAN}?receiver-name=Alice%E2%82`)).toBe(
-      "the payto link is damaged and cannot be read",
+      "The payto link is damaged and cannot be read.",
     );
     expect(reasonFor(`payto://iban/${IBAN}%ZZ?${NAME}`)).toBe(
-      "the payto link is damaged and cannot be read",
+      "The payto link is damaged and cannot be read.",
     );
   });
 
@@ -356,13 +358,13 @@ describe("reading a payto link", () => {
 
   it("names the failed element without repeating the input", () => {
     const reason = reasonFor(`payto://iban/DE33100205000001194799?${NAME}`);
-    expect(reason).toBe("the payto link is not a valid payment request: the IBAN failed the checks");
+    expect(reason).toBe("The payto link is not a valid payment request: the IBAN failed the checks.");
 
     const smuggled = reasonFor(
       `payto://iban/${IBAN}?receiver-name=Alice%0A${IBAN}&message=Ev%E2%80%AEil`,
     );
     expect(smuggled).toBe(
-      "the payto link is not a valid payment request: the beneficiary name and the remittance text failed the checks",
+      "The payto link is not a valid payment request: the beneficiary name and the remittance text failed the checks.",
     );
   });
 
@@ -383,12 +385,12 @@ describe("reading a payto link", () => {
     const message = encodeURIComponent("\u4EAC".repeat(140));
 
     expect(reasonFor(`payto://iban/${IBAN}?receiver-name=${name}&message=${message}`)).toBe(
-      "the payto link carries more text than a payment code can hold",
+      "The payto link carries more text than a payment code can hold.",
     );
     // A failed element is still named, even when the size is over as well.
     expect(
       reasonFor(`payto://iban/DE33100205000001194799?receiver-name=${name}&message=${message}`),
-    ).toBe("the payto link is not a valid payment request: the IBAN failed the checks");
+    ).toBe("The payto link is not a valid payment request: the IBAN failed the checks.");
   });
 
   it("reads a name with characters beyond the basic plane", () => {
@@ -404,10 +406,10 @@ describe("reading a payto link", () => {
 
   it("refuses half a surrogate pair, which no code can carry", () => {
     expect(reasonFor(`payto://iban/${IBAN}?receiver-name=\uDB40`)).toBe(
-      "the payto link is not a valid payment request: the beneficiary name failed the checks",
+      "The payto link is not a valid payment request: the beneficiary name failed the checks.",
     );
     expect(reasonFor(`payto://iban/${IBAN}?${NAME}&message=pay\uD800now`)).toBe(
-      "the payto link is not a valid payment request: the remittance text failed the checks",
+      "The payto link is not a valid payment request: the remittance text failed the checks.",
     );
   });
 

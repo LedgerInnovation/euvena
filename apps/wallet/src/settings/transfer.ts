@@ -11,6 +11,7 @@
 
 import { normalizePayee, validatePayee, type Payee } from "../epc/request";
 import { readPaymentRequest } from "../epc/scan";
+import { en, type Dictionary, type TransferRefusal } from "../i18n";
 import { HISTORY_LIMIT, readHistory, type HistoryEntry } from "./history";
 import { PAYEE_LIMIT, pickPayee, readPayeeBook, type PayeeBook } from "./payee";
 
@@ -37,10 +38,14 @@ export interface Counts {
 
 export type ReadTransferResult =
   | { ok: true; transfer: Transfer; dropped: Counts }
-  | { ok: false; reason: string };
+  | { ok: false; reason: TransferRefusal };
 
-/** A failure worded for the user, as opposed to one from the platform. */
-export class TransferProblem extends Error {}
+/** A failure the user is told about in their language, as opposed to one from the platform. */
+export class TransferProblem extends Error {
+  constructor(public readonly refusal: TransferRefusal) {
+    super(refusal);
+  }
+}
 
 /** What an import did, for the notice under the buttons. */
 export interface ImportOutcome {
@@ -53,9 +58,8 @@ export interface ImportOutcome {
   historyFailed: boolean;
 }
 
-export const NOT_AN_EXPORT = "That file is not a Euvena wallet export.";
-export const NEWER_EXPORT =
-  "That file was written by a newer version of the wallet. Update the wallet to read it.";
+const NOT_AN_EXPORT: TransferRefusal = "notAnExport";
+const NEWER_EXPORT: TransferRefusal = "newerExport";
 
 /** How far ahead of the clock a kept request may be dated before it is not believed. */
 const FUTURE_ALLOWANCE_MS = 24 * 60 * 60 * 1000;
@@ -121,7 +125,8 @@ export function readTransfer(text: string, now: Date): ReadTransferResult {
   let active = 0;
   for (const [at, payee] of read.payees.entries()) {
     const normalized = normalizePayee(payee);
-    if (Object.keys(validatePayee(normalized)).length > 0) continue;
+    // Only whether the encoder accepts it matters here, so any wording does.
+    if (Object.keys(validatePayee(normalized, en)).length > 0) continue;
     payees.push(normalized);
     if (at === read.active) active = payees.length - 1;
   }
@@ -216,29 +221,27 @@ function newestFirst(a: HistoryEntry, b: HistoryEntry): number {
   return Date.parse(b.builtAt) - Date.parse(a.builtAt);
 }
 
-function count(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
-/** The halves of a count that are not zero, joined for a sentence. */
-function both(counts: Counts, history: boolean): string {
+/** The halves of a count that are not zero, joined for a sentence; empty when both are zero. */
+function both(counts: Counts, history: boolean, strings: Dictionary): string {
   const parts: string[] = [];
-  if (counts.payees > 0) parts.push(count(counts.payees, "payee", "payees"));
-  if (history && counts.history > 0) parts.push(count(counts.history, "request", "requests"));
-  return parts.join(" and ");
+  if (counts.payees > 0) parts.push(strings.settings.payeesCount(counts.payees));
+  if (history && counts.history > 0) parts.push(strings.settings.requestsCount(counts.history));
+  const [first, second] = parts;
+  if (first === undefined) return "";
+  return second === undefined ? first : strings.settings.and(first, second);
 }
 
 /** What an import did, in a sentence or three. */
-export function describeImport(outcome: ImportOutcome): string {
+export function describeImport(outcome: ImportOutcome, strings: Dictionary): string {
   const { added, skipped, dropped, historyFailed } = outcome;
   const parts: string[] = [];
-  const gained = both(added, !historyFailed);
-  if (gained !== "") parts.push(`Added ${gained}.`);
-  else if (!historyFailed) parts.push("Nothing new in that file.");
-  if (historyFailed) parts.push("The kept requests could not be written to this device.");
-  const held = both(skipped, !historyFailed);
-  if (held !== "") parts.push(`Already here or past the limit: ${held}.`);
-  const unfit = both(dropped, true);
-  if (unfit !== "") parts.push(`Could not be used: ${unfit}.`);
+  const gained = both(added, !historyFailed, strings);
+  if (gained !== "") parts.push(strings.settings.added(gained));
+  else if (!historyFailed) parts.push(strings.settings.nothingNew);
+  if (historyFailed) parts.push(strings.settings.historyNotWritten);
+  const held = both(skipped, !historyFailed, strings);
+  if (held !== "") parts.push(strings.settings.alreadyHere(held));
+  const unfit = both(dropped, true, strings);
+  if (unfit !== "") parts.push(strings.settings.couldNotUse(unfit));
   return parts.join(" ");
 }

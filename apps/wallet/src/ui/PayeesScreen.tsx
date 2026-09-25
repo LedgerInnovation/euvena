@@ -2,11 +2,10 @@ import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { formatIbanForDisplay } from "../epc/request";
+import { useStrings } from "../i18n/context";
 import { PAYEE_LIMIT, type PayeeBook } from "../settings/payee";
 import { Button, Card, Header, Hint, Problem, Screen, TextAction } from "./kit";
 import { useTheme } from "./theme";
-
-const USE_FAILED = "The choice could not be saved to this device.";
 
 interface PayeesScreenProps {
   book: PayeeBook;
@@ -27,6 +26,7 @@ interface PayeesScreenProps {
 export function PayeesScreen({ book, onUse, onEdit, onAdd, from, onBack }: PayeesScreenProps) {
   const [useFailedAt, setUseFailedAt] = useState<number | null>(null);
   const theme = useTheme();
+  const strings = useStrings();
   const full = book.payees.length >= PAYEE_LIMIT;
 
   const use = async (index: number) => {
@@ -41,8 +41,8 @@ export function PayeesScreen({ book, onUse, onEdit, onAdd, from, onBack }: Payee
   return (
     <Screen>
       <Header
-        title="Payees"
-        subtitle="Requests are built for the active payee. All of them stay on this device."
+        title={strings.payees.title}
+        subtitle={strings.payees.subtitle}
         back={{ label: from, onPress: onBack }}
       />
 
@@ -56,33 +56,35 @@ export function PayeesScreen({ book, onUse, onEdit, onAdd, from, onBack }: Payee
                   {payee.name}
                 </Text>
                 <Hint>{formatIbanForDisplay(payee.iban)}</Hint>
-                {active ? <Text style={[styles.active, { color: theme.link }]}>Active</Text> : null}
+                {active ? (
+                  <Text style={[styles.active, { color: theme.link }]}>{strings.payees.active}</Text>
+                ) : null}
               </View>
               <View style={styles.actions}>
                 {active ? null : (
                   <TextAction
-                    label="Use"
+                    label={strings.payees.use}
                     onPress={() => {
                       void use(index);
                     }}
-                    accessibilityLabel={`Build requests for ${payee.name}`}
+                    accessibilityLabel={strings.payees.useA11y(payee.name)}
                   />
                 )}
                 <TextAction
-                  label="Edit"
+                  label={strings.payees.edit}
                   onPress={() => onEdit(index)}
-                  accessibilityLabel={`Edit ${payee.name}`}
+                  accessibilityLabel={strings.payees.editA11y(payee.name)}
                 />
               </View>
             </View>
-            {useFailedAt === index ? <Problem>{USE_FAILED}</Problem> : null}
+            {useFailedAt === index ? <Problem>{strings.payees.useFailed}</Problem> : null}
           </Card>
         );
       })}
 
       <View style={styles.add}>
-        <Button label="Add a payee" variant="secondary" onPress={onAdd} disabled={full} />
-        {full ? <Hint center>The wallet holds up to {PAYEE_LIMIT} payees.</Hint> : null}
+        <Button label={strings.payees.add} variant="secondary" onPress={onAdd} disabled={full} />
+        {full ? <Hint center>{strings.payees.limit(PAYEE_LIMIT)}</Hint> : null}
       </View>
     </Screen>
   );

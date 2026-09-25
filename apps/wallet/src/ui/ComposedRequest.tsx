@@ -4,6 +4,7 @@ import { EPC069_MAX_BYTES, byteLength, type EpcQrData } from "@euvena/qr";
 
 import { buildShareMessage } from "../epc/link";
 import { summarizeRequest } from "../epc/request";
+import { useLocale } from "../i18n/context";
 import {
   EPC069_ERROR_CORRECTION,
   EPC069_MAX_VERSION,
@@ -13,22 +14,13 @@ import {
 import { Button, Card, Hint, Problem, Rows, SectionLabel, TextAction } from "./kit";
 import { QrCode } from "./QrCode";
 
-/**
- * Subject offered to destinations that have one, such as mail. Android reads
- * it from the content title and iOS from the subject option, so the share
- * call passes it as both.
- */
-const SHARE_TITLE = "Payment request";
-
-const KEEP_FAILED = "The request could not be kept on this device.";
-
-type SymbolResult = { symbol: QrSymbol } | { error: string };
+type SymbolResult = { symbol: QrSymbol } | { error: true };
 
 function buildSymbol(payload: string): SymbolResult {
   try {
     return { symbol: toQrSymbol(payload) };
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "the code could not be rendered" };
+  } catch {
+    return { error: true };
   }
 }
 
@@ -58,13 +50,14 @@ interface ComposedRequestProps {
  */
 export function ComposedRequest({ payload, data, onKeep, compact = false }: ComposedRequestProps) {
   const { width } = useWindowDimensions();
+  const { strings } = useLocale();
   const rendered = useMemo(() => buildSymbol(payload), [payload]);
   const codeSize = Math.min(width - 104, 280);
 
   if ("error" in rendered) {
     return (
       <Card tone="danger">
-        <Problem>{rendered.error}</Problem>
+        <Problem>{strings.composed.renderFailed}</Problem>
       </Card>
     );
   }
@@ -114,10 +107,13 @@ function ShareRequest({
   data: EpcQrData;
   onKeep: ((payload: string) => Promise<void>) | undefined;
 }) {
+  const { strings, tag } = useLocale();
   const [sharing, setSharing] = useState(false);
   const [keeping, setKeeping] = useState(false);
   const [kept, setKept] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // A failure is kept as what happened and worded when shown, so a language
+  // switch re-words it. A message from the platform is kept as it came.
+  const [error, setError] = useState<"keep" | { message: string } | null>(null);
 
   const keep = useCallback(async () => {
     if (onKeep === undefined) return;
@@ -127,7 +123,7 @@ function ShareRequest({
       await onKeep(payload);
       setKept(true);
     } catch {
-      setError(KEEP_FAILED);
+      setError("keep");
     } finally {
       setKeeping(false);
     }
@@ -137,9 +133,13 @@ function ShareRequest({
     setSharing(true);
     setError(null);
     try {
+      // The title is offered to destinations that have a subject, such as
+      // mail. Android reads it from the content title and iOS from the
+      // subject option, so it is passed as both.
+      const title = strings.composed.shareTitle;
       const result = await Share.share(
-        { title: SHARE_TITLE, message: buildShareMessage(data, payload) },
-        { subject: SHARE_TITLE },
+        { title, message: buildShareMessage(data, payload, strings, tag) },
+        { subject: title },
       );
       // iOS reports a sheet closed without a destination; Android settles as
       // soon as the sheet is launched and always reports it as shared. A
@@ -150,16 +150,16 @@ function ShareRequest({
       // settles it when the sheet closes, and a destination that fails after
       // being picked arrives here too. Whatever the platform reports is worth
       // saying out loud.
-      setError(cause instanceof Error ? cause.message : "the request could not be shared");
+      setError({ message: cause instanceof Error ? cause.message : "" });
     } finally {
       setSharing(false);
     }
-  }, [payload, data, keep]);
+  }, [payload, data, keep, strings, tag]);
 
   return (
     <View style={styles.share}>
       <Button
-        label="Share this request"
+        label={strings.composed.share}
         busy={sharing}
         onPress={() => {
           void onShare();
@@ -167,7 +167,7 @@ function ShareRequest({
       />
       {onKeep === undefined ? null : (
         <Button
-          label={kept ? "Kept in history" : "Keep without sharing"}
+          label={kept ? strings.composed.kept : strings.composed.keep}
           variant="ghost"
           disabled={kept}
           busy={keeping}
@@ -177,10 +177,18 @@ function ShareRequest({
         />
       )}
       <Hint>
-        The link carries the same request as the code.
-        {onKeep === undefined ? "" : " A shared request is kept in the history."}
+        {strings.composed.shareHint}
+        {onKeep === undefined ? "" : ` ${strings.composed.sharedIsKept}`}
       </Hint>
-      {error === null ? null : <Problem>{error}</Problem>}
+      {error === null ? null : (
+        <Problem>
+          {error === "keep"
+            ? strings.composed.keepFailed
+            : error.message === ""
+              ? strings.composed.shareFailed
+              : error.message}
+        </Problem>
+      )}
     </View>
   );
 }
@@ -201,23 +209,29 @@ function DecodedSummary({
   compact: boolean;
 }) {
   const [open, setOpen] = useState(!compact);
+  const { strings, tag } = useLocale();
   if (!open) {
     return (
       <TextAction
-        label="Show what the code says"
+        label={strings.composed.showDetails}
         onPress={() => setOpen(true)}
-        accessibilityLabel="Show what the code says, the values decoded from it"
+        accessibilityLabel={strings.composed.showDetailsA11y}
       />
     );
   }
   return (
     <View style={styles.summary}>
-      <SectionLabel>What the code says</SectionLabel>
-      <Rows rows={summarizeRequest(data)} />
+      <SectionLabel>{strings.composed.whatTheCodeSays}</SectionLabel>
+      <Rows rows={summarizeRequest(data, strings, tag)} />
       <Hint>
-        EPC069-12 version {data.version}, UTF-8, {byteLength(payload, data.charset)} of{" "}
-        {EPC069_MAX_BYTES} bytes. QR version {symbol.version} of {EPC069_MAX_VERSION}, error
-        correction {EPC069_ERROR_CORRECTION}.
+        {strings.composed.figures({
+          version: data.version,
+          bytes: byteLength(payload, data.charset),
+          maxBytes: EPC069_MAX_BYTES,
+          qrVersion: symbol.version,
+          maxQrVersion: EPC069_MAX_VERSION,
+          correction: EPC069_ERROR_CORRECTION,
+        })}
       </Hint>
     </View>
   );

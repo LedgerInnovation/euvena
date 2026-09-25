@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+
+import { describeRejection, en, type Rejection } from "../src/i18n";
 import { EPC069_MAX_BYTES, byteLength } from "@euvena/qr";
 
 import { parseRequestLink, buildRequestLink } from "../src/epc/link";
@@ -16,6 +18,8 @@ import {
   readPaymentRequest,
 } from "../src/epc/scan";
 
+const text = (rejection: Rejection) => describeRejection(rejection, en);
+
 const payee: Payee = {
   name: "Wikimedia Foerdergesellschaft",
   iban: "DE33 1002 0500 0001 1947 00",
@@ -24,7 +28,7 @@ const payee: Payee = {
 
 /** Builds a request the way the screen does, then fails the test if it cannot. */
 function requestFor(form: RequestForm) {
-  const request = buildPaymentRequest(payee, form);
+  const request = buildPaymentRequest(payee, form, en);
   if (!request.ok) throw new Error(`the form did not build: ${JSON.stringify(request.issues)}`);
   return request;
 }
@@ -95,7 +99,7 @@ describe("readPaymentRequest reads what the request side produces", () => {
 
     expect(read.ok).toBe(true);
     if (!read.ok) return;
-    const rows = summarizeRequest(read.data);
+    const rows = summarizeRequest(read.data, en, "en");
     expect(rows).toContainEqual({ label: "Purpose", value: "GDDS" });
     expect(rows).toContainEqual({ label: "Information", value: "Collect at desk 3" });
   });
@@ -178,7 +182,7 @@ describe("readOpenedLink reads the link the app was opened with", () => {
   });
 
   it("rejects a link in the wallet's scheme that is not a request, rather than ignoring it", () => {
-    const notARequest = { ok: false, reason: "not a euvena://request link" };
+    const notARequest = { ok: false, reason: { code: "linkNot" } };
 
     expect(readOpenedLink("euvena://settings")).toEqual(notARequest);
     // Without the slashes the link is still the wallet's, so the link parser
@@ -193,7 +197,7 @@ describe("readOpenedLink reads the link the app was opened with", () => {
 
     const read = readOpenedLink(tampered);
 
-    expect(read).toEqual({ ok: false, reason: "the link does not carry a valid payment request" });
+    expect(read).toEqual({ ok: false, reason: { code: "linkInvalid" } });
   });
 });
 
@@ -201,8 +205,8 @@ describe("openedRequestStep never swaps what the payer is looking at", () => {
   const first = requestFor({ amount: "10", remittanceKind: "text", remittance: "Invoice 7" });
   const second = requestFor({ amount: "10", remittanceKind: "text", remittance: "Invoice 8" });
   const read = (payload: string) => readPaymentRequest(payload);
-  const damaged = { ok: false, reason: "the link is damaged and cannot be read" } as const;
-  const invalid = { ok: false, reason: "the link does not carry a valid payment request" } as const;
+  const damaged = { ok: false, reason: { code: "linkDamaged" } } as const;
+  const invalid = { ok: false, reason: { code: "linkInvalid" } } as const;
 
   it("shows an opened request when nothing is on screen", () => {
     expect(openedRequestStep(null, read(first.payload))).toBe("show");
@@ -236,8 +240,8 @@ describe("rejection reasons name the element and never the value", () => {
 
     expect(read.ok).toBe(false);
     if (read.ok) return;
-    expect(read.reason).toContain("the IBAN");
-    expect(read.reason).not.toContain("DE33100205000001194799");
+    expect(text(read.reason)).toContain("the IBAN");
+    expect(text(read.reason)).not.toContain("DE33100205000001194799");
   });
 
   it("names the beneficiary name when it hides invisible formatting", () => {
@@ -255,8 +259,8 @@ describe("rejection reasons name the element and never the value", () => {
 
     expect(read.ok).toBe(false);
     if (read.ok) return;
-    expect(read.reason).toContain("the beneficiary name");
-    expect(read.reason).not.toContain("Ev");
+    expect(text(read.reason)).toContain("the beneficiary name");
+    expect(text(read.reason)).not.toContain("Ev");
   });
 
   it("names the format version without repeating it", () => {
@@ -266,8 +270,8 @@ describe("rejection reasons name the element and never the value", () => {
 
     expect(read.ok).toBe(false);
     if (read.ok) return;
-    expect(read.reason).toContain("the format version");
-    expect(read.reason).not.toContain("999");
+    expect(text(read.reason)).toContain("the format version");
+    expect(text(read.reason)).not.toContain("999");
   });
 
   it("lists several failed elements in one sentence", () => {
@@ -277,10 +281,10 @@ describe("rejection reasons name the element and never the value", () => {
 
     expect(read.ok).toBe(false);
     if (read.ok) return;
-    expect(read.reason).toContain("the format version");
-    expect(read.reason).toContain("the IBAN");
-    expect(read.reason).toContain(" and ");
-    expect(read.reason).not.toContain(", and");
+    expect(text(read.reason)).toContain("the format version");
+    expect(text(read.reason)).toContain("the IBAN");
+    expect(text(read.reason)).toContain(" and ");
+    expect(text(read.reason)).not.toContain(", and");
   });
 
   it("refuses a scanned code whose beneficiary name shows nothing", () => {
@@ -291,7 +295,7 @@ describe("rejection reasons name the element and never the value", () => {
 
       expect(read).toEqual({
         ok: false,
-        reason: "the code is not a valid payment request: the beneficiary name failed the checks",
+        reason: { code: "codeInvalid", elements: ["name"] },
       });
     }
   });
@@ -301,7 +305,7 @@ describe("rejection reasons name the element and never the value", () => {
 
     expect(read.ok).toBe(false);
     if (read.ok) return;
-    expect(read.reason).toContain("the overall structure");
+    expect(text(read.reason)).toContain("the overall structure");
   });
 
   it("counts the bytes of a scanned payload as they arrived", () => {
@@ -327,6 +331,6 @@ describe("rejection reasons name the element and never the value", () => {
 
     expect(read.ok).toBe(false);
     if (read.ok) return;
-    expect(read.reason).toContain("the overall structure");
+    expect(text(read.reason)).toContain("the overall structure");
   });
 });

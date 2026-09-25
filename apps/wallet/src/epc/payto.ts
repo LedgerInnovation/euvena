@@ -25,6 +25,8 @@
 
 import { isValidAmountString, type EncodeEpcQrOptions, type EpcQrData } from "@euvena/qr";
 
+import { type Rejection } from "../i18n";
+
 /** URI scheme of RFC 8905 payment target URIs. */
 export const PAYTO_SCHEME = "payto";
 
@@ -58,7 +60,8 @@ function encodeOptionValue(value: string): string {
 }
 
 export interface HandoffField {
-  label: string;
+  /** Which row this is; the screen names it in the user's language. */
+  key: "payee" | "iban" | "bic" | "amount" | "reference" | "text";
   /** The raw value a bank form expects, not the display presentation. */
   value: string;
 }
@@ -71,22 +74,22 @@ export interface HandoffField {
  */
 export function handoffFields(data: EpcQrData): HandoffField[] {
   const fields: HandoffField[] = [
-    { label: "Name", value: data.name },
-    { label: "IBAN", value: data.iban },
+    { key: "payee", value: data.name },
+    { key: "iban", value: data.iban },
   ];
-  if (data.bic !== undefined) fields.push({ label: "BIC", value: data.bic });
-  if (data.amount !== undefined) fields.push({ label: "Amount", value: data.amount });
-  if (data.reference !== undefined) fields.push({ label: "Reference", value: data.reference });
-  if (data.text !== undefined) fields.push({ label: "Text", value: data.text });
+  if (data.bic !== undefined) fields.push({ key: "bic", value: data.bic });
+  if (data.amount !== undefined) fields.push({ key: "amount", value: data.amount });
+  if (data.reference !== undefined) fields.push({ key: "reference", value: data.reference });
+  if (data.text !== undefined) fields.push({ key: "text", value: data.text });
   return fields;
 }
 
 export type ParsedPaytoUri =
   | { ok: true; request: EncodeEpcQrOptions }
-  | { ok: false; reason: string };
+  | { ok: false; reason: Rejection };
 
-const MALFORMED = "the payto link is malformed";
-const DAMAGED = "the payto link is damaged and cannot be read";
+const MALFORMED: Rejection = { code: "paytoMalformed" };
+const DAMAGED: Rejection = { code: "paytoDamaged" };
 
 /**
  * Reads an RFC 8905 `payto://iban` URI into the fields of an EPC069-12
@@ -127,7 +130,7 @@ const DAMAGED = "the payto link is damaged and cannot be read";
 export function parsePaytoUri(uri: string): ParsedPaytoUri {
   const prefix = `${PAYTO_SCHEME}://`;
   if (uri.slice(0, prefix.length).toLowerCase() !== prefix) {
-    return { ok: false, reason: "not a payto link" };
+    return { ok: false, reason: { code: "paytoNot" } };
   }
   // RFC 8905 has no fragment. A stray one must not ride into a value.
   if (uri.includes("#")) return { ok: false, reason: MALFORMED };
@@ -141,7 +144,7 @@ export function parsePaytoUri(uri: string): ParsedPaytoUri {
   // something other than "iban" here and is refused with it.
   const [target, ...segments] = hierarchy.split("/");
   if (target === undefined || target.toLowerCase() !== IBAN_TARGET) {
-    return { ok: false, reason: "the payto link is for an account type other than an IBAN" };
+    return { ok: false, reason: { code: "paytoNotIban" } };
   }
   if (segments.length > 1 && segments[segments.length - 1] === "") segments.pop();
   // Section 7.3: the path is the IBAN, or the BIC followed by the IBAN.
@@ -155,7 +158,7 @@ export function parsePaytoUri(uri: string): ParsedPaytoUri {
       const separator = pair.indexOf("=");
       if (separator < 1) return { ok: false, reason: MALFORMED };
       const name = pair.slice(0, separator);
-      if (options.has(name)) return { ok: false, reason: "the payto link repeats an option" };
+      if (options.has(name)) return { ok: false, reason: { code: "paytoRepeatedOption" } };
       options.set(name, pair.slice(separator + 1));
     }
   }
@@ -184,16 +187,16 @@ export function parsePaytoUri(uri: string): ParsedPaytoUri {
     if (name === "instruction") {
       return {
         ok: false,
-        reason: "the payto link carries an end-to-end identifier, which this wallet cannot pass on",
+        reason: { code: "paytoInstruction" },
       };
     }
     if (!READ_OPTIONS.has(name) && !IGNORED_OPTIONS.has(name)) {
-      return { ok: false, reason: "the payto link carries an option this wallet does not know" };
+      return { ok: false, reason: { code: "paytoUnknownOption" } };
     }
   }
 
   const name = decoded.options.get("receiver-name") ?? "";
-  if (name === "") return { ok: false, reason: "the payto link names no beneficiary" };
+  if (name === "") return { ok: false, reason: { code: "paytoNoName" } };
 
   const bic = decoded.segments.length === 2 ? decoded.segments[0] : undefined;
   const iban = decoded.segments[decoded.segments.length - 1] ?? "";
@@ -223,13 +226,13 @@ const IGNORED_OPTIONS = new Set(["sender-name", "receiver-postal-code", "receive
  * fraction may run to eight digits, but a SEPA amount stops at the cent, so
  * anything past it must be zeros: rounding would change what is paid.
  */
-function readPaytoAmount(value: string): { ok: true; value: string } | { ok: false; reason: string } {
-  const unusable = { ok: false, reason: "the payto link carries an amount this wallet cannot use" } as const;
+function readPaytoAmount(value: string): { ok: true; value: string } | { ok: false; reason: Rejection } {
+  const unusable = { ok: false, reason: { code: "paytoBadAmount" } } as const;
 
   const separator = value.indexOf(":");
   if (separator === -1) return unusable;
   if (value.slice(0, separator).toUpperCase() !== "EUR") {
-    return { ok: false, reason: "the payto link asks for a currency other than euro" };
+    return { ok: false, reason: { code: "paytoNotEuro" } };
   }
 
   // Digits only on both sides of the point, so a comma never gets through.

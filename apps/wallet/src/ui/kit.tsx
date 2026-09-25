@@ -14,6 +14,7 @@ import Svg, { Defs, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useStrings } from "../i18n/context";
 import { BRAND_BLUE, BRAND_BLUE_DEEP, BRAND_SKY, BRAND_SKY_DEEP, useTheme } from "./theme";
 
 /**
@@ -76,6 +77,7 @@ interface HeaderProps {
 /** The screen title beside the logo mark, with an optional action on the right. */
 export function Header({ title, subtitle, action, back }: HeaderProps) {
   const theme = useTheme();
+  const strings = useStrings();
   return (
     <View style={styles.header}>
       {back === undefined ? null : (
@@ -83,7 +85,7 @@ export function Header({ title, subtitle, action, back }: HeaderProps) {
           onPress={back.onPress}
           disabled={back.disabled === true}
           accessibilityRole="button"
-          accessibilityLabel={`Back to ${back.label}`}
+          accessibilityLabel={strings.common.backTo(back.label)}
           accessibilityState={{ disabled: back.disabled === true }}
           hitSlop={12}
           style={styles.back}
@@ -454,6 +456,41 @@ export function TabBar<K extends string>({
   );
 }
 
+/** A choice between several options listed as rows, one always selected. */
+export function ChoiceRows<K extends string>({ options, value, onChange }: SegmentedProps<K>) {
+  const theme = useTheme();
+  return (
+    <View accessibilityRole="radiogroup">
+      {options.map((option) => {
+        const selected = option.key === value;
+        return (
+          <Pressable
+            key={option.key}
+            onPress={() => onChange(option.key)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected, checked: selected }}
+            style={({ pressed }) => [
+              styles.navRow,
+              { backgroundColor: pressed ? theme.pressedSoft : "transparent" },
+            ]}
+          >
+            <Text style={[styles.choiceLabel, { color: theme.text }]}>{option.label}</Text>
+            {selected ? (
+              <Ionicons
+                name="checkmark"
+                size={20}
+                color={theme.link}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              />
+            ) : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 /** A row that opens another screen, for lists of settings. */
 export function NavRow({
   label,
@@ -587,6 +624,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     flexShrink: 0,
+  },
+  choiceLabel: {
+    flex: 1,
+    fontSize: 16,
   },
   navRowDetail: {
     flex: 1,

@@ -15,12 +15,13 @@
 
 import { EpcQrError, decodeEpcQr, encodeEpcQr, type EpcQrData } from "@euvena/qr";
 
+import { elementKeys, sameRejection, type Rejection } from "../i18n";
 import { REQUEST_LINK_SCHEME, parseRequestLink } from "./link";
 import { PAYTO_SCHEME, parsePaytoUri } from "./payto";
 
 export type ReadRequestResult =
   | { ok: true; payload: string; data: EpcQrData }
-  | { ok: false; reason: string };
+  | { ok: false; reason: Rejection };
 
 /** A request the app was opened with, numbered in order of arrival. */
 export interface OpenedRequest {
@@ -28,7 +29,7 @@ export interface OpenedRequest {
   result: ReadRequestResult;
 }
 
-export const NOT_A_PAYMENT_INPUT = "not a payment code or a shared payment link";
+export const NOT_A_PAYMENT_INPUT: Rejection = { code: "notPaymentInput" };
 
 /** Input shaped like a URI, which belongs to the link parser. */
 const SCHEME_SHAPED = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
@@ -39,24 +40,7 @@ const OWN_SCHEME_PREFIX = `${REQUEST_LINK_SCHEME}:`;
 /** How a payto URI begins, compared without case. */
 const PAYTO_PREFIX = `${PAYTO_SCHEME}://`;
 
-const PAYTO_TOO_LONG = "the payto link carries more text than a payment code can hold";
-
-/** What each codec element is called when a rejection names it. */
-const ELEMENT_LABELS: Record<string, string> = {
-  serviceTag: "the service tag",
-  version: "the format version",
-  charset: "the character set",
-  identification: "the identification code",
-  bic: "the BIC",
-  name: "the beneficiary name",
-  iban: "the IBAN",
-  amount: "the amount",
-  purpose: "the purpose code",
-  reference: "the payment reference",
-  text: "the remittance text",
-  information: "the information line",
-  payload: "the overall structure",
-};
+const PAYTO_TOO_LONG: Rejection = { code: "paytoTooLong" };
 
 /**
  * Classifies the input, then decodes it through the codec in strict mode.
@@ -77,14 +61,14 @@ export function readPaymentRequest(input: string): ReadRequestResult {
       return { ok: true, payload: input, data: decodeEpcQr(input).data };
     } catch (error) {
       if (error instanceof EpcQrError) {
-        return { ok: false, reason: describeRejection(error, "the code") };
+        return { ok: false, reason: rejectionOf(error, "codeInvalid") };
       }
       throw error;
     }
   }
 
   const trimmed = input.trim();
-  if (trimmed === "") return { ok: false, reason: "there is nothing to read" };
+  if (trimmed === "") return { ok: false, reason: { code: "empty" } };
   if (trimmed.slice(0, PAYTO_PREFIX.length).toLowerCase() === PAYTO_PREFIX) {
     return readPaytoRequest(trimmed);
   }
@@ -113,7 +97,7 @@ function readPaytoRequest(uri: string): ReadRequestResult {
       if (error.issues.some((issue) => issue.element === "payload")) {
         return { ok: false, reason: PAYTO_TOO_LONG };
       }
-      return { ok: false, reason: describeRejection(error, "the payto link") };
+      return { ok: false, reason: rejectionOf(error, "paytoInvalid") };
     }
     throw error;
   }
@@ -165,26 +149,14 @@ export function openedRequestStep(
 ): "show" | "same" | "hold" {
   if (shown === null) return "show";
   if (shown.ok && opened.ok) return shown.payload === opened.payload ? "same" : "hold";
-  if (!shown.ok && !opened.ok) return shown.reason === opened.reason ? "same" : "hold";
+  if (!shown.ok && !opened.ok) return sameRejection(shown.reason, opened.reason) ? "same" : "hold";
   return "hold";
 }
 
 /**
- * One sentence naming the elements that failed, built from this module's own
- * labels and never from the codec's messages.
+ * The elements that failed, by key, so the screen names them in the user's
+ * language and never from the codec's messages.
  */
-function describeRejection(error: EpcQrError, subject: string): string {
-  const labels: string[] = [];
-  for (const issue of error.issues) {
-    const label = ELEMENT_LABELS[issue.element] ?? "an element";
-    if (!labels.includes(label)) labels.push(label);
-  }
-  if (labels.length === 0) return `${subject} does not carry a valid payment request`;
-  return `${subject} is not a valid payment request: ${joinLabels(labels)} failed the checks`;
-}
-
-function joinLabels(labels: string[]): string {
-  const last = labels[labels.length - 1] ?? "";
-  if (labels.length === 1) return last;
-  return `${labels.slice(0, -1).join(", ")} and ${last}`;
+function rejectionOf(error: EpcQrError, code: "codeInvalid" | "paytoInvalid"): Rejection {
+  return { code, elements: elementKeys(error.issues.map((issue) => issue.element)) };
 }
