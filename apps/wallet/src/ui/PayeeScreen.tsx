@@ -8,6 +8,7 @@ import {
   validatePayee,
   type Payee,
 } from "../epc/request";
+import { useStrings } from "../i18n/context";
 import { Button, Card, Field, Header, Hint, Input, Problem, Screen } from "./kit";
 
 interface PayeeScreenProps {
@@ -20,9 +21,6 @@ interface PayeeScreenProps {
   onCancel: () => void;
   notice?: string | null;
 }
-
-const SAVE_FAILED = "Settings could not be saved to this device. Nothing was stored.";
-const REMOVE_FAILED = "The payee could not be removed from this device.";
 
 /**
  * Edits the beneficiary details the request codes are built from.
@@ -37,6 +35,7 @@ export function PayeeScreen({
   onCancel,
   notice = null,
 }: PayeeScreenProps) {
+  const strings = useStrings();
   const [draft, setDraft] = useState<Payee>(payee ?? EMPTY_PAYEE);
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -56,7 +55,7 @@ export function PayeeScreen({
   // The encoder decides what can be saved, so nothing that saves can fail to
   // encode on the request screen. Empty fields disable Save without shouting.
   const normalized = normalizePayee(draft);
-  const issues = validatePayee(draft);
+  const issues = validatePayee(draft, strings);
   const complete = Object.keys(issues).length === 0;
   // A required BIC is reported on an empty field, since emptiness is the problem.
   const nameError = normalized.name === "" ? undefined : issues.name;
@@ -80,9 +79,9 @@ export function PayeeScreen({
     if (onRemove === undefined) return;
     // An IBAN typed by hand has no backup, so removal asks first.
     const confirmed = await new Promise<boolean>((resolve) =>
-      Alert.alert("Remove this payee?", "Its name and IBAN are not kept anywhere else.", [
-        { text: "Keep", style: "cancel", onPress: () => resolve(false) },
-        { text: "Remove", style: "destructive", onPress: () => resolve(true) },
+      Alert.alert(strings.payee.removeAsk, strings.payee.removeAskDetail, [
+        { text: strings.payee.keep, style: "cancel", onPress: () => resolve(false) },
+        { text: strings.payee.removeConfirm, style: "destructive", onPress: () => resolve(true) },
       ]),
     );
     if (!confirmed) return;
@@ -100,9 +99,9 @@ export function PayeeScreen({
   return (
     <Screen>
       <Header
-        title={payee === undefined ? "Add a payee" : "Edit payee"}
-        subtitle="Held on this device only. The wallet has no accounts and no backend and never routes funds."
-        action={{ label: "Cancel", onPress: onCancel, disabled: busy }}
+        title={payee === undefined ? strings.payee.addTitle : strings.payee.editTitle}
+        subtitle={strings.payee.subtitle}
+        action={{ label: strings.common.cancel, onPress: onCancel, disabled: busy }}
       />
 
       {notice === null ? null : (
@@ -112,66 +111,63 @@ export function PayeeScreen({
       )}
 
       <Card>
-        <Field label="Name" error={nameError}>
+        <Field label={strings.payee.name} error={nameError}>
           <Input
             value={draft.name}
             onChangeText={(name) => setDraft({ ...draft, name })}
-            placeholder="Beneficiary name, up to 70 characters"
+            placeholder={strings.payee.namePlaceholder}
             autoCorrect={false}
             textContentType="name"
           />
         </Field>
 
         <Field
-          label="IBAN"
+          label={strings.payee.iban}
           error={ibanError}
           hint={normalized.iban === "" ? undefined : formatIbanForDisplay(normalized.iban)}
         >
           <Input
             value={draft.iban}
             onChangeText={(value) => setDraft({ ...draft, iban: value })}
-            placeholder="DE33 1002 0500 0001 1947 00"
+            placeholder={strings.payee.ibanPlaceholder}
             autoCapitalize="characters"
             autoCorrect={false}
           />
         </Field>
 
-        <Field label="BIC" error={bicError}>
+        <Field label={strings.payee.bic} error={bicError}>
           <Input
             value={draft.bic}
             onChangeText={(bic) => setDraft({ ...draft, bic })}
-            placeholder="Optional inside the EEA"
+            placeholder={strings.payee.bicPlaceholder}
             autoCapitalize="characters"
             autoCorrect={false}
           />
           {/* Outside the error slot, so the rule stays readable under an error. */}
-          <Hint>
-            Version 002 codes leave the BIC out for EEA beneficiaries. It stays mandatory for
-            accounts in SEPA countries outside the EEA.
-          </Hint>
+          <Hint>{strings.common.bicRule}</Hint>
         </Field>
       </Card>
 
       {saveFailed ? (
         <Card tone="danger">
-          <Problem>{SAVE_FAILED}</Problem>
+          <Problem>{strings.payee.saveFailed}</Problem>
         </Card>
       ) : null}
 
       <View style={styles.actions}>
         <Button
-          label={saving ? "Saving" : "Save"}
+          label={saving ? strings.common.saving : strings.common.save}
           disabled={!complete || removing}
           busy={saving}
           onPress={() => {
             void submit();
           }}
         />
-        <Hint center>Nothing is sent anywhere. The details only go into the codes you build.</Hint>
+        <Hint center>{strings.payee.nothingSent}</Hint>
         {onRemove === undefined ? null : (
           <>
             <Button
-              label={removing ? "Removing" : "Remove this payee"}
+              label={removing ? strings.payee.removing : strings.payee.remove}
               variant="ghost"
               disabled={saving}
               busy={removing}
@@ -179,7 +175,7 @@ export function PayeeScreen({
                 void remove();
               }}
             />
-            {removeFailed ? <Problem>{REMOVE_FAILED}</Problem> : null}
+            {removeFailed ? <Problem>{strings.payee.removeFailed}</Problem> : null}
           </>
         )}
       </View>

@@ -10,6 +10,8 @@ import {
   type RemittanceKind,
   type RequestForm,
 } from "../epc/request";
+import { type Dictionary } from "../i18n";
+import { useStrings } from "../i18n/context";
 import { ComposedRequest } from "./ComposedRequest";
 import {
   Button,
@@ -40,26 +42,6 @@ interface RequestScreenProps {
   onKeep: (payload: string) => Promise<void>;
 }
 
-const REMITTANCE_KINDS: {
-  key: RemittanceKind;
-  label: string;
-  placeholder: string;
-  hint: string;
-}[] = [
-  {
-    key: "text",
-    label: "Text",
-    placeholder: "What the payment is for",
-    hint: "Up to 140 characters of text",
-  },
-  {
-    key: "reference",
-    label: "Reference",
-    placeholder: "RF18539007547034",
-    hint: "A structured creditor reference, up to 35 characters",
-  },
-];
-
 /** Issues the request builder reports against the payee rather than the form. */
 const PAYEE_ELEMENTS: ReadonlySet<string> = new Set(["name", "iban", "bic"]);
 
@@ -85,69 +67,76 @@ export function RequestScreen({
   const [remittanceOpen, setRemittanceOpen] = useState(false);
   const showRemittance = remittanceOpen || form.remittance !== "";
   const theme = useTheme();
+  const strings = useStrings();
 
-  const payeeIssues = validatePayee(payee);
+  const payeeIssues = validatePayee(payee, strings);
   const payeeReady = Object.keys(payeeIssues).length === 0;
   // Stored settings are not validated when read, so a payee written under
   // older rules can be present and still not encode. That is a problem to
   // name, not a first run.
   const payeeEmpty = payee.name === "" && payee.iban === "";
-  const request = useMemo(() => buildPaymentRequest(payee, form), [payee, form]);
+  const request = useMemo(
+    () => buildPaymentRequest(payee, form, strings),
+    [payee, form, strings],
+  );
   // Payee problems are what the set-up card is for, so only form problems are
   // listed under the form.
   const formIssues = request.ok
     ? []
     : request.issues.filter((issue) => !PAYEE_ELEMENTS.has(issue.element));
 
-  const remittanceKind = REMITTANCE_KINDS.find((entry) => entry.key === form.remittanceKind);
+  const remittanceKinds: { key: RemittanceKind; label: string }[] = [
+    { key: "text", label: strings.request.kindText },
+    { key: "reference", label: strings.request.kindReference },
+  ];
+  const reference = form.remittanceKind === "reference";
 
   return (
     <Screen>
       <Header
-        title="Request money"
-        action={{ label: "Settings", icon: "settings-outline", onPress: onSettings }}
+        title={strings.request.title}
+        action={{ label: strings.request.settings, icon: "settings-outline", onPress: onSettings }}
       />
 
       {payeeReady ? (
         <Card>
           <View style={styles.payeeRow}>
             <View style={styles.payeeText}>
-              <SectionLabel>Paid to</SectionLabel>
+              <SectionLabel>{strings.request.paidTo}</SectionLabel>
               <Text style={[styles.payeeName, { color: theme.text }]} numberOfLines={1}>
                 {payee.name}
               </Text>
               <Hint>{formatIbanForDisplay(payee.iban)}</Hint>
             </View>
             <TextAction
-              label={payeeCount > 1 ? "Switch" : "Change"}
+              label={payeeCount > 1 ? strings.request.switchPayee : strings.request.changePayee}
               onPress={onEditPayee}
-              accessibilityLabel={payeeCount > 1 ? "Switch payee" : "Change payee"}
+              accessibilityLabel={
+                payeeCount > 1 ? strings.request.switchPayeeA11y : strings.request.changePayeeA11y
+              }
             />
           </View>
         </Card>
       ) : payeeEmpty ? (
         <Card tone="soft">
-          <CardTitle>Who gets paid?</CardTitle>
-          <Hint>
-            Add the name and IBAN a request is paid to. They stay on this device: the wallet has
-            no accounts and no backend.
-          </Hint>
-          <Button label="Add name and IBAN" onPress={onEditPayee} />
+          <CardTitle>{strings.request.whoGetsPaid}</CardTitle>
+          <Hint>{strings.request.whoGetsPaidHint}</Hint>
+          <Button label={strings.request.addNameAndIban} onPress={onEditPayee} />
         </Card>
       ) : (
         <Card tone="danger">
-          <CardTitle>Check the payee settings</CardTitle>
+          <CardTitle>{strings.request.checkPayee}</CardTitle>
           {Object.entries(payeeIssues).map(([field, message]) => (
             <Problem key={field}>
-              {field}: {message}
+              {payeeFieldLabel(field, strings)}: {message}
             </Problem>
           ))}
-          <Button label="Open payee settings" onPress={onRepairPayee} />
+          <Button label={strings.request.openPayeeSettings} onPress={onRepairPayee} />
         </Card>
       )}
 
       <Card>
-        <Field label="Amount in euro">
+        <Field label={strings.request.amountLabel}>
           <AmountInput
             value={form.amount}
             onChangeText={(amount) => setForm({ ...form, amount })}
@@ -155,35 +144,38 @@ export function RequestScreen({
         </Field>
 
         {showRemittance ? (
-          <Field label="What it is for" hint={remittanceKind?.hint}>
+          <Field
+            label={strings.request.purposeLabel}
+            hint={reference ? strings.request.referenceHint : strings.request.textHint}
+          >
             <Segmented
-              options={REMITTANCE_KINDS}
+              options={remittanceKinds}
               value={form.remittanceKind}
               onChange={(kind) => setForm({ ...form, remittanceKind: kind })}
             />
             <Input
               value={form.remittance}
               onChangeText={(remittance) => setForm({ ...form, remittance })}
-              placeholder={remittanceKind?.placeholder}
+              placeholder={
+                reference ? strings.request.referencePlaceholder : strings.request.textPlaceholder
+              }
               multiline
-              autoCapitalize={form.remittanceKind === "reference" ? "characters" : "sentences"}
+              autoCapitalize={reference ? "characters" : "sentences"}
               autoCorrect={false}
             />
           </Field>
         ) : (
           <TextAction
-            label="Add what it is for"
+            label={strings.request.addPurpose}
             onPress={() => setRemittanceOpen(true)}
-            accessibilityLabel="Add what the payment is for, a text or a reference"
+            accessibilityLabel={strings.request.addPurposeA11y}
           />
         )}
 
         {formIssues.length === 0 ? null : (
           <View style={styles.issues}>
             {formIssues.map((issue) => (
-              <Problem key={`${issue.element}:${issue.message}`}>
-                {issue.element}: {issue.message}
-              </Problem>
+              <Problem key={`${issue.element}:${issue.message}`}>{issue.message}</Problem>
             ))}
           </View>
         )}
@@ -196,6 +188,20 @@ export function RequestScreen({
   );
 }
 
+/** The payee field a problem is listed under, named as the rows name it. */
+function payeeFieldLabel(field: string, strings: Dictionary): string {
+  switch (field) {
+    case "name":
+      return strings.rows.payee;
+    case "iban":
+      return strings.rows.iban;
+    case "bic":
+      return strings.rows.bic;
+    default:
+      return field;
+  }
+}
+
 /** The amount, large, with the currency sign fixed before it. */
 function AmountInput({
   value,
@@ -205,6 +211,7 @@ function AmountInput({
   onChangeText: (value: string) => void;
 }) {
   const theme = useTheme();
+  const strings = useStrings();
   return (
     <View style={styles.amount}>
       <Text
@@ -218,11 +225,11 @@ function AmountInput({
         style={styles.amountInput}
         value={value}
         onChangeText={onChangeText}
-        placeholder="Payer decides"
+        placeholder={strings.request.payerDecides}
         keyboardType="decimal-pad"
         inputMode="decimal"
         autoCorrect={false}
-        accessibilityLabel="Amount in euro, leave empty to let the payer decide"
+        accessibilityLabel={strings.request.amountA11y}
       />
     </View>
   );

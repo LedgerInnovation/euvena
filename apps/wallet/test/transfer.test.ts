@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { en } from "../src/i18n";
+
 import { EMPTY_FORM, buildPaymentRequest, type Payee } from "../src/epc/request";
 import { HISTORY_LIMIT, type HistoryEntry } from "../src/settings/history";
 import { EMPTY_BOOK, PAYEE_LIMIT } from "../src/settings/payee";
 import {
   MAX_TRANSFER_LENGTH,
-  NEWER_EXPORT,
-  NOT_AN_EXPORT,
   TRANSFER_VERSION,
   describeImport,
   mergeTransfer,
@@ -25,7 +25,7 @@ const club: Payee = { name: "Chess Club", iban: "FR7630006000011234567890189", b
 const shop: Payee = { name: "Corner Shop", iban: "NL91ABNA0417164300", bic: "" };
 
 function payload(of: Payee, amount: string): string {
-  const built = buildPaymentRequest(of, { ...EMPTY_FORM, amount });
+  const built = buildPaymentRequest(of, { ...EMPTY_FORM, amount }, en);
   if (!built.ok) throw new Error("fixture does not encode");
   return built.payload;
 }
@@ -74,22 +74,22 @@ describe("transfer file", () => {
 
   it("refuses what is not an export", () => {
     for (const text of ["", "{", "null", "[]", '"a"', "{}", '{"format":"other","version":1}']) {
-      expect(readTransfer(text, now)).toEqual({ ok: false, reason: NOT_AN_EXPORT });
+      expect(readTransfer(text, now)).toEqual({ ok: false, reason: "notAnExport" });
     }
     const base = { format: "euvena-wallet", payees: [], history: [] };
     for (const version of [0, -1, 1.5, "1", null]) {
       expect(readTransfer(JSON.stringify({ ...base, version }), now)).toEqual({
         ok: false,
-        reason: NOT_AN_EXPORT,
+        reason: "notAnExport",
       });
     }
     expect(readTransfer(JSON.stringify({ format: "euvena-wallet", version: 1 }), now)).toEqual({
       ok: false,
-      reason: NOT_AN_EXPORT,
+      reason: "notAnExport",
     });
     expect(readTransfer(`{"format":"euvena-wallet"${" ".repeat(MAX_TRANSFER_LENGTH)}}`, now)).toEqual({
       ok: false,
-      reason: NOT_AN_EXPORT,
+      reason: "notAnExport",
     });
   });
 
@@ -100,7 +100,7 @@ describe("transfer file", () => {
       payees: [payee],
       history: [],
     });
-    expect(readTransfer(text, now)).toEqual({ ok: false, reason: NEWER_EXPORT });
+    expect(readTransfer(text, now)).toEqual({ ok: false, reason: "newerExport" });
   });
 
   it("drops a payee the encoder rejects and keeps the active one by identity", () => {
@@ -224,7 +224,7 @@ describe("merging an export", () => {
 describe("describing an import", () => {
   const none = { payees: 0, history: 0 };
   it("leaves out zero halves and says nothing new when nothing was added", () => {
-    expect(describeImport({ added: none, skipped: none, dropped: none, historyFailed: false })).toBe(
+    expect(describeImport({ added: none, skipped: none, dropped: none, historyFailed: false }, en)).toBe(
       "Nothing new in that file.",
     );
     expect(
@@ -233,10 +233,10 @@ describe("describing an import", () => {
         skipped: { payees: 0, history: 3 },
         dropped: { payees: 2, history: 1 },
         historyFailed: false,
-      }),
+      }, en),
     ).toBe("Added 1 payee. Already here or past the limit: 3 requests. Could not be used: 2 payees and 1 request.");
     expect(
-      describeImport({ added: none, skipped: none, dropped: { payees: 0, history: 2 }, historyFailed: false }),
+      describeImport({ added: none, skipped: none, dropped: { payees: 0, history: 2 }, historyFailed: false }, en),
     ).toBe("Nothing new in that file. Could not be used: 2 requests.");
   });
 
@@ -247,11 +247,11 @@ describe("describing an import", () => {
         skipped: { payees: 1, history: 0 },
         dropped: none,
         historyFailed: true,
-      }),
+      }, en),
     ).toBe(
       "Added 2 payees. The kept requests could not be written to this device. Already here or past the limit: 1 payee.",
     );
-    expect(describeImport({ added: none, skipped: none, dropped: none, historyFailed: true })).toBe(
+    expect(describeImport({ added: none, skipped: none, dropped: none, historyFailed: true }, en)).toBe(
       "The kept requests could not be written to this device.",
     );
   });

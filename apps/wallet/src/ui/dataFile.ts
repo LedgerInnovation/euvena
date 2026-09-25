@@ -20,7 +20,6 @@ const JSON_TYPE = "application/json";
  */
 const PICK_TYPES = [JSON_TYPE, "text/plain", "application/octet-stream"];
 
-const FILE_TOO_LARGE = "That file is larger than any wallet export.";
 
 /**
  * Writes the text to a file in the cache and offers it to the share sheet.
@@ -29,7 +28,7 @@ const FILE_TOO_LARGE = "That file is larger than any wallet export.";
  * destination to read and the system clears the cache when it needs the
  * space.
  */
-export async function shareDataFile(name: string, text: string): Promise<void> {
+export async function shareDataFile(name: string, text: string, dialogTitle: string): Promise<void> {
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error("sharing is not available on this device");
   }
@@ -39,7 +38,7 @@ export async function shareDataFile(name: string, text: string): Promise<void> {
     await Sharing.shareAsync(file.uri, {
       mimeType: JSON_TYPE,
       UTI: "public.json",
-      dialogTitle: "Save or send the wallet data",
+      dialogTitle,
     });
   } finally {
     // A missing file throws on delete, and a throw here would hide the
@@ -66,7 +65,7 @@ export async function pickDataFile(): Promise<string | null> {
   // The limit counts characters and this counts bytes, so it is a coarse
   // gate; the reader applies the exact one.
   if (file.size !== null && file.size > MAX_TRANSFER_LENGTH) {
-    throw new TransferProblem(FILE_TOO_LARGE);
+    throw new TransferProblem("tooLarge");
   }
   return file.text();
 }

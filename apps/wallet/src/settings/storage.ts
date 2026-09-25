@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { parseHistory, serializeHistory, type HistoryEntry } from "./history";
 import { parsePayeeBook, serializePayeeBook, type PayeeBook } from "./payee";
+import { parsePreferences, serializePreferences, type Preferences } from "./preferences";
 
 // Key from before the rename to Euvena, and from before the book of payees:
 // changing it would silently drop the payee saved on existing installs. The
@@ -11,6 +12,7 @@ import { parsePayeeBook, serializePayeeBook, type PayeeBook } from "./payee";
 const PAYEE_KEY = "eupi.payee";
 
 const HISTORY_KEY = "euvena.history";
+const PREFERENCES_KEY = "euvena.preferences";
 
 export async function loadPayeeBook(): Promise<PayeeBook> {
   return parsePayeeBook(await AsyncStorage.getItem(PAYEE_KEY));
@@ -29,4 +31,12 @@ export async function loadHistory(): Promise<HistoryEntry[]> {
 
 export async function saveHistory(entries: HistoryEntry[]): Promise<void> {
   await AsyncStorage.setItem(HISTORY_KEY, serializeHistory(entries));
+}
+
+export async function loadPreferences(): Promise<Preferences> {
+  return parsePreferences(await AsyncStorage.getItem(PREFERENCES_KEY));
+}
+
+export async function savePreferences(preferences: Preferences): Promise<void> {
+  await AsyncStorage.setItem(PREFERENCES_KEY, serializePreferences(preferences));
 }

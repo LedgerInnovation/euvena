@@ -3,17 +3,12 @@ import { BackHandler, StyleSheet, Text, View } from "react-native";
 
 import { summarizeRequest } from "../epc/request";
 import { readPaymentRequest, type ReadRequestResult } from "../epc/scan";
+import { formatDateTime } from "../i18n";
+import { useLocale } from "../i18n/context";
 import { type HistoryEntry } from "../settings/history";
 import { ComposedRequest } from "./ComposedRequest";
 import { Button, Card, CardTitle, Header, Hint, Problem, Rows, Screen, TextAction } from "./kit";
 import { useTheme } from "./theme";
-
-const READ_FAILED_NOTICE =
-  "The saved history could not be read from this device. Nothing is kept or marked until the app is restarted, so the saved list is not written over.";
-
-const MARK_FAILED = "The mark could not be saved to this device.";
-
-const UNREADABLE = "This entry could not be read as a payment request.";
 
 interface HistoryScreenProps {
   entries: HistoryEntry[];
@@ -41,6 +36,7 @@ export function HistoryScreen({
   active,
 }: HistoryScreenProps) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const { strings } = useLocale();
   useEffect(() => {
     setOpenId(null);
   }, [listRequested]);
@@ -77,7 +73,10 @@ export function HistoryScreen({
     // Keyed apart from the list, so the detail does not inherit its scroll offset.
     return (
       <Screen key="detail">
-        <Header title="Kept request" back={{ label: "History", onPress: () => setOpenId(null) }} />
+        <Header
+          title={strings.history.keptRequest}
+          back={{ label: strings.history.title, onPress: () => setOpenId(null) }}
+        />
         <Card>
           <EntryStatus
             entry={open}
@@ -85,13 +84,13 @@ export function HistoryScreen({
               void mark(open);
             }}
           />
-          {markFailedId === open.id ? <Problem>{MARK_FAILED}</Problem> : null}
+          {markFailedId === open.id ? <Problem>{strings.history.markFailed}</Problem> : null}
         </Card>
         {openResult.ok ? (
           <ComposedRequest payload={openResult.payload} data={openResult.data} />
         ) : (
           <Card tone="danger">
-            <Problem>{UNREADABLE}</Problem>
+            <Problem>{strings.history.unreadable}</Problem>
           </Card>
         )}
       </Screen>
@@ -101,22 +100,20 @@ export function HistoryScreen({
   return (
     <Screen key="list">
       <Header
-        title="History"
-        subtitle="Requests kept on this device, newest first. A done mark is your own note."
+        title={strings.history.title}
+        subtitle={strings.history.subtitle}
       />
 
       {loadFailed ? (
         <Card tone="danger">
-          <Problem>{READ_FAILED_NOTICE}</Problem>
+          <Problem>{strings.history.readFailed}</Problem>
         </Card>
       ) : null}
 
       {entries.length === 0 ? (
         <Card tone="soft">
-          <CardTitle>Nothing kept yet</CardTitle>
-          <Hint>
-            A request is kept here when you share it, or when you press Keep without sharing.
-          </Hint>
+          <CardTitle>{strings.history.nothingKept}</CardTitle>
+          <Hint>{strings.history.nothingKeptHint}</Hint>
         </Card>
       ) : (
         entries.map((entry) => (
@@ -149,16 +146,19 @@ function EntryCard({
   onOpen: () => void;
   onMark: () => void;
 }) {
+  const { strings, tag } = useLocale();
   return (
     <Card>
       <EntryStatus entry={entry} onMark={onMark} />
       {result?.ok === true ? (
-        <Rows rows={summarizeRequest(result.data)} struck={entry.done} />
+        <Rows rows={summarizeRequest(result.data, strings, tag)} struck={entry.done} />
       ) : (
-        <Problem>{UNREADABLE}</Problem>
+        <Problem>{strings.history.unreadable}</Problem>
       )}
-      {markFailed ? <Problem>{MARK_FAILED}</Problem> : null}
-      {result?.ok === true ? <Button label="Open" variant="ghost" onPress={onOpen} /> : null}
+      {markFailed ? <Problem>{strings.history.markFailed}</Problem> : null}
+      {result?.ok === true ? (
+        <Button label={strings.common.open} variant="ghost" onPress={onOpen} />
+      ) : null}
     </Card>
   );
 }
@@ -166,30 +166,24 @@ function EntryCard({
 /** When the request was built, its mark and the action that flips the mark. */
 function EntryStatus({ entry, onMark }: { entry: HistoryEntry; onMark: () => void }) {
   const theme = useTheme();
+  const { strings, tag } = useLocale();
   return (
     <View style={styles.status}>
       <Text style={[styles.builtAt, { color: theme.muted }]}>
-        {formatBuiltAt(entry.builtAt)}
-        {entry.done ? " · done" : ""}
+        {formatBuiltAt(entry.builtAt, tag)}
+        {entry.done ? ` · ${strings.history.done}` : ""}
       </Text>
       <TextAction
-        label={entry.done ? "Mark open" : "Mark done"}
+        label={entry.done ? strings.history.markOpen : strings.history.markDone}
         onPress={onMark}
-        accessibilityLabel={
-          entry.done ? "Mark this request open again" : "Mark this request done"
-        }
+        accessibilityLabel={entry.done ? strings.history.markOpenA11y : strings.history.markDoneA11y}
       />
     </View>
   );
 }
 
-function formatBuiltAt(iso: string): string {
-  const date = new Date(iso);
-  return `${date.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  })}, ${date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+function formatBuiltAt(iso: string, tag: string): string {
+  return formatDateTime(iso, tag);
 }
 
 const styles = StyleSheet.create({

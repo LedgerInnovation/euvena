@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+
+import { describeRejection, en, type Rejection } from "../src/i18n";
 import { encodeEpcQr } from "@euvena/qr";
 
 import {
@@ -11,6 +13,8 @@ import {
 } from "../src/epc/link";
 import { buildPaymentRequest, type Payee, type RequestForm } from "../src/epc/request";
 
+const text = (rejection: Rejection) => describeRejection(rejection, en);
+
 const payee: Payee = {
   name: "Wikimedia Foerdergesellschaft",
   iban: "DE33 1002 0500 0001 1947 00",
@@ -19,7 +23,7 @@ const payee: Payee = {
 
 /** Builds a request the way the screen does, then fails the test if it cannot. */
 function requestFor(form: RequestForm) {
-  const request = buildPaymentRequest(payee, form);
+  const request = buildPaymentRequest(payee, form, en);
   if (!request.ok) throw new Error(`the form did not build: ${JSON.stringify(request.issues)}`);
   return request;
 }
@@ -116,14 +120,13 @@ describe("a shared request round-trips", () => {
     const clipped = parseRequestLink(link.slice(0, -1));
     expect(clipped.ok).toBe(false);
     if (clipped.ok) return;
-    expect(clipped.reason).toContain("damaged");
+    expect(text(clipped.reason)).toContain("damaged");
   });
 
   it("survives a name outside ASCII", () => {
     const request = buildPaymentRequest(
       { name: "Zürcher Kantonalbank Ärzte", iban: "DE33100205000001194700", bic: "" },
-      { amount: "2,50", remittanceKind: "text", remittance: "Kaffee" },
-    );
+      { amount: "2,50", remittanceKind: "text", remittance: "Kaffee" }, en);
     expect(request.ok).toBe(true);
     if (!request.ok) return;
 
@@ -161,8 +164,8 @@ describe("parseRequestLink", () => {
 
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
-    expect(parsed.reason).toBe(
-      "this link was shared before the app was renamed to Euvena; ask for a fresh link or code",
+    expect(text(parsed.reason)).toBe(
+      "This link was shared before the app was renamed to Euvena. Ask for a fresh link or code.",
     );
   });
 
@@ -218,7 +221,7 @@ describe("parseRequestLink", () => {
 
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
-    expect(parsed.reason).toContain("no payment request");
+    expect(text(parsed.reason)).toContain("no payment request");
   });
 
   it("rejects a truncated escape rather than throwing", () => {
@@ -228,7 +231,7 @@ describe("parseRequestLink", () => {
 
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
-    expect(parsed.reason).toContain("damaged");
+    expect(text(parsed.reason)).toContain("damaged");
   });
 
   it("rejects a payload a scanner would reject, so a link cannot smuggle one in", () => {
@@ -246,8 +249,8 @@ describe("parseRequestLink", () => {
 
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
-    expect(parsed.reason).toBe("the link does not carry a valid payment request");
-    expect(parsed.reason).not.toContain("EVIL");
+    expect(text(parsed.reason)).toBe("The link does not carry a valid payment request.");
+    expect(text(parsed.reason)).not.toContain("EVIL");
   });
 });
 
@@ -259,11 +262,11 @@ describe("buildShareMessage", () => {
       remittance: "Spende fuer Wikipedia",
     });
 
-    const message = buildShareMessage(request.data, request.payload);
+    const message = buildShareMessage(request.data, request.payload, en, "en");
 
     expect(message).toContain("Payee: Wikimedia Foerdergesellschaft");
     expect(message).toContain("IBAN: DE33 1002 0500 0001 1947 00");
-    expect(message).toContain("Amount: EUR 13,05");
+    expect(message).toContain("Amount: €13.05");
     expect(message).toContain("Text: Spende fuer Wikipedia");
     expect(message.endsWith(buildRequestLink(request.payload))).toBe(true);
   });
@@ -271,7 +274,7 @@ describe("buildShareMessage", () => {
   it("says who enters the amount when the request leaves it open", () => {
     const request = requestFor({ amount: "", remittanceKind: "text", remittance: "" });
 
-    expect(buildShareMessage(request.data, request.payload)).toContain(
+    expect(buildShareMessage(request.data, request.payload, en, "en")).toContain(
       "Amount: entered by the payer",
     );
   });

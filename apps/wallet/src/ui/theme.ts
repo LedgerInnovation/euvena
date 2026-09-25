@@ -1,4 +1,7 @@
+import { createContext, useContext } from "react";
 import { useColorScheme } from "react-native";
+
+import type { Appearance } from "../settings/preferences";
 
 /** The two blues of the logo mark, top and bottom of its gradients. */
 export const BRAND_BLUE = "#1F74F7";
@@ -83,5 +86,16 @@ export const DARK: Theme = {
  * stays dark modules on a light card in both appearances, for scanner contrast.
  */
 export function useTheme(): Theme {
-  return useColorScheme() === "dark" ? DARK : LIGHT;
+  return useScheme() === "dark" ? DARK : LIGHT;
+}
+
+/** The appearance chosen in the settings; "system" follows the device. */
+export const AppearanceContext = createContext<Appearance>("system");
+
+/** The scheme in force: the chosen one, or the device's while following it. */
+export function useScheme(): "light" | "dark" {
+  const chosen = useContext(AppearanceContext);
+  const system = useColorScheme();
+  if (chosen !== "system") return chosen;
+  return system === "dark" ? "dark" : "light";
 }

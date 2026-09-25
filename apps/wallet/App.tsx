@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, BackHandler, Keyboard, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Appearance, BackHandler, Keyboard, StyleSheet, View } from "react-native";
 import * as Linking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
+import { useLocales } from "expo-localization";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { type Payee } from "./src/epc/request";
 import { readOpenedLink, type OpenedRequest } from "./src/epc/scan";
+import { resolveLocale, type Language } from "./src/i18n";
+import { LocaleProvider, useStrings } from "./src/i18n/context";
 import { markEntry, rememberRequest, type HistoryEntry } from "./src/settings/history";
 import {
   EMPTY_BOOK,
@@ -16,7 +19,15 @@ import {
   setActivePayee,
   type PayeeBook,
 } from "./src/settings/payee";
-import { loadHistory, loadPayeeBook, saveHistory, savePayeeBook } from "./src/settings/storage";
+import { DEFAULT_PREFERENCES, type Preferences } from "./src/settings/preferences";
+import {
+  loadHistory,
+  loadPayeeBook,
+  loadPreferences,
+  saveHistory,
+  savePayeeBook,
+  savePreferences,
+} from "./src/settings/storage";
 import {
   TransferProblem,
   type ImportOutcome,
@@ -34,16 +45,10 @@ import { PayeesScreen } from "./src/ui/PayeesScreen";
 import { RequestScreen } from "./src/ui/RequestScreen";
 import { ScanScreen } from "./src/ui/ScanScreen";
 import { SettingsScreen } from "./src/ui/SettingsScreen";
-import { useTheme } from "./src/ui/theme";
+import { AppearanceContext, useScheme, useTheme } from "./src/ui/theme";
 
 /** The three places the bar at the foot of the screen switches between. */
 type TabKey = "request" | "pay" | "history";
-
-const TABS: readonly Tab<TabKey>[] = [
-  { key: "request", label: "Request", icon: "qr-code-outline", selectedIcon: "qr-code" },
-  { key: "pay", label: "Pay", icon: "scan-outline", selectedIcon: "scan" },
-  { key: "history", label: "History", icon: "time-outline", selectedIcon: "time" },
-];
 
 /** Where the payee screens were entered from, which is where leaving them returns to. */
 type Origin = "tab" | "settings";
@@ -60,10 +65,6 @@ type Screen =
   | { name: "payees"; origin: Origin }
   | { name: "payee"; editing: number | null; origin: Origin; fromList: boolean };
 
-const IMPORT_OVER_UNREAD =
-  "Saved payees could not be read from this device, so a file cannot be added to them.";
-const READ_FAILED_NOTICE =
-  "Saved settings could not be read from this device. Enter them again to build a code.";
 
 /** Where the payee form returns to when it is left without a change. */
 function leavePayeeForm(screen: Screen & { name: "payee" }): Screen {
@@ -89,7 +90,101 @@ function leavePayees(screen: Screen & { name: "payees" }): Screen {
 // the call rejects there; that is nothing to act on.
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
+/**
+ * Reads the preferences and puts the appearance and the language they name
+ * in force over the whole wallet. Both can be chosen again, so they are
+ * written even after a failed read.
+ */
 export default function App() {
+  const preferences = useCommittedStore<Preferences>(DEFAULT_PREFERENCES, savePreferences, {
+    writeAfterFailedRead: true,
+  });
+  const [loaded, setLoaded] = useState(false);
+  const { loaded: preferencesLoaded, failed: preferencesFailed } = preferences;
+  useEffect(() => {
+    let cancelled = false;
+    loadPreferences()
+      .then((stored) => {
+        if (!cancelled) preferencesLoaded(stored);
+      })
+      .catch(() => {
+        if (!cancelled) preferencesFailed();
+      })
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [preferencesLoaded, preferencesFailed]);
+
+  // The device's languages, most preferred first. The hook follows a change
+  // made in the system settings while the app is running.
+  const deviceTags = useLocales()
+    .map((locale) => locale.languageTag)
+    .join(" ");
+  const chosenLanguage = preferences.value.language;
+  const deviceLanguage = useMemo(
+    () => resolveLocale(null, deviceTags.split(" ")).language,
+    [deviceTags],
+  );
+  const locale = useMemo(
+    () => resolveLocale(chosenLanguage, deviceTags.split(" ")),
+    [chosenLanguage, deviceTags],
+  );
+  const { commit } = preferences;
+  // The native side follows the chosen appearance too, so alerts, the
+  // keyboard and the sheets the wallet opens match the screens.
+  const appearance = preferences.value.appearance;
+  useEffect(() => {
+    Appearance.setColorScheme(appearance === "system" ? "unspecified" : appearance);
+  }, [appearance]);
+  const onAppearance = useCallback(
+    (next: Preferences["appearance"]) => {
+      // Told to the platform before the write settles, so the frame that
+      // follows the tap already reads the right scheme.
+      Appearance.setColorScheme(next === "system" ? "unspecified" : next);
+      return commit((current) => ({ ...current, appearance: next }));
+    },
+    [commit],
+  );
+  const onLanguage = useCallback(
+    (chosen: Language | null) => commit((current) => ({ ...current, language: chosen })),
+    [commit],
+  );
+
+  return (
+    <AppearanceContext.Provider value={appearance}>
+      <LocaleProvider locale={locale}>
+        <Wallet
+          preferencesLoaded={loaded}
+          preferences={preferences.value}
+          deviceLanguage={deviceLanguage}
+          onAppearance={onAppearance}
+          onLanguage={onLanguage}
+        />
+      </LocaleProvider>
+    </AppearanceContext.Provider>
+  );
+}
+
+interface WalletProps {
+  preferencesLoaded: boolean;
+  preferences: Preferences;
+  deviceLanguage: Language;
+  onAppearance: (appearance: Preferences["appearance"]) => Promise<void>;
+  onLanguage: (language: Language | null) => Promise<void>;
+}
+
+function Wallet({
+  preferencesLoaded,
+  preferences,
+  deviceLanguage,
+  onAppearance,
+  onLanguage,
+}: WalletProps) {
+  const strings = useStrings();
+  const scheme = useScheme();
   // Settings the user can retype are written even after a failed read: the
   // form says to enter them again, and that has to work.
   const book = useCommittedStore<PayeeBook>(EMPTY_BOOK, savePayeeBook, {
@@ -181,9 +276,10 @@ export default function App() {
     };
   }, [bookLoaded, bookFailed, historyLoaded, historyFailed]);
 
+  const ready = loaded && preferencesLoaded;
   useEffect(() => {
-    if (loaded) SplashScreen.hideAsync().catch(() => undefined);
-  }, [loaded]);
+    if (ready) SplashScreen.hideAsync().catch(() => undefined);
+  }, [ready]);
 
   // The system back gesture or button on Android leaves a screen opened over
   // the tabs the way its own back link does. On the tabs it keeps its meaning,
@@ -244,13 +340,15 @@ export default function App() {
   // The export is built from what is committed, not from a draft on screen.
   const bookValue = book.value;
   const historyValue = history.value;
+  const shareDialog = strings.settings.shareDialog;
   const onExport = useCallback(() => {
     const now = new Date();
     return shareDataFile(
       transferFileName(now),
       serializeTransfer({ book: bookValue, history: historyValue }, now),
+      shareDialog,
     );
-  }, [bookValue, historyValue]);
+  }, [bookValue, historyValue, shareDialog]);
   // The payees are written first and on their own, so a history that cannot
   // be written (after a failed read) still leaves the payees imported, and
   // the outcome says so. The counts are taken once a write has settled: a
@@ -259,7 +357,7 @@ export default function App() {
   const onImport = useCallback(async (): Promise<ImportOutcome | null> => {
     // A book that could not be read would be written over by the merge, and
     // that is the user's whole list: a file is not worth it.
-    if (bookUnread) throw new TransferProblem(IMPORT_OVER_UNREAD);
+    if (bookUnread) throw new TransferProblem("bookUnread");
     const text = await pickDataFile();
     if (text === null) return null;
     const read = readTransfer(text, new Date());
@@ -299,10 +397,13 @@ export default function App() {
   }, [bookUnread, commitBook, commitHistory]);
   // An export after a failed read would hand out a file missing what could
   // not be read, and look complete. It is refused instead.
-  const exportProblem =
-    book.loadFailed || history.loadFailed
-      ? "Saved data could not be read from this device, so there is nothing complete to export."
-      : null;
+  const exportBlocked = book.loadFailed || history.loadFailed;
+
+  const tabs: readonly Tab<TabKey>[] = [
+    { key: "request", label: strings.tabs.request, icon: "qr-code-outline", selectedIcon: "qr-code" },
+    { key: "pay", label: strings.tabs.pay, icon: "scan-outline", selectedIcon: "scan" },
+    { key: "history", label: strings.tabs.history, icon: "time-outline", selectedIcon: "time" },
+  ];
 
   const payees = book.value.payees;
   // Where a payee card or row leads: straight to the form while there is
@@ -336,8 +437,8 @@ export default function App() {
     <SafeAreaProvider>
       <View style={[styles.root, { backgroundColor: theme.background }]}>
         <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
-          <StatusBar style="auto" />
-          {!loaded ? (
+          <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+          {!ready ? (
             <ActivityIndicator style={styles.loading} color={theme.primary} />
           ) : screen.name === "payee" ? (
             <SafeAreaView style={styles.root} edges={["bottom"]}>
@@ -349,7 +450,7 @@ export default function App() {
                   screen.editing === null ? undefined : onRemovePayee.bind(null, screen.editing)
                 }
                 onCancel={() => setScreen(leavePayeeForm(screen))}
-                notice={book.loadFailed ? READ_FAILED_NOTICE : null}
+                notice={book.loadFailed ? strings.payee.readFailed : null}
               />
             </SafeAreaView>
           ) : screen.name === "payees" ? (
@@ -363,7 +464,7 @@ export default function App() {
                 onAdd={() =>
                   setScreen({ name: "payee", editing: null, origin: screen.origin, fromList: true })
                 }
-                from={screen.origin === "settings" ? "Settings" : "Request"}
+                from={screen.origin === "settings" ? strings.settings.title : strings.tabs.request}
                 onBack={() => setScreen(leavePayees(screen))}
               />
             </SafeAreaView>
@@ -374,7 +475,11 @@ export default function App() {
                 activeName={activeName}
                 onPayees={() => choosePayee("settings")}
                 onExport={onExport}
-                exportProblem={exportProblem}
+                exportBlocked={exportBlocked}
+                preferences={preferences}
+                deviceLanguage={deviceLanguage}
+                onAppearance={onAppearance}
+                onLanguage={onLanguage}
                 onImport={onImport}
                 onBack={() => setScreen({ name: "tab" })}
               />
@@ -415,7 +520,7 @@ export default function App() {
                   active={tab === "history"}
                 />
               </View>
-              <TabBar tabs={TABS} active={tab} onChange={onTab} />
+              <TabBar tabs={tabs} active={tab} onChange={onTab} />
             </>
           )}
         </SafeAreaView>

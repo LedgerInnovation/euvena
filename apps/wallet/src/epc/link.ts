@@ -18,6 +18,7 @@
 
 import { EpcQrError, decodeEpcQr, type EpcQrData } from "@euvena/qr";
 
+import { type Dictionary, type Rejection } from "../i18n";
 import { summarizeRequest } from "./request";
 
 /** URI scheme of a shared request. */
@@ -34,9 +35,9 @@ export const REQUEST_LINK_PARAM = "epc";
 
 export type ParsedRequestLink =
   | { ok: true; payload: string; data: EpcQrData }
-  | { ok: false; reason: string };
+  | { ok: false; reason: Rejection };
 
-const NOT_A_REQUEST_LINK = `not a ${REQUEST_LINK_SCHEME}://${REQUEST_LINK_ACTION} link`;
+const NOT_A_REQUEST_LINK: Rejection = { code: "linkNot" };
 
 /**
  * Scheme the wallet emitted before it was renamed to Euvena, retired on
@@ -46,8 +47,6 @@ const NOT_A_REQUEST_LINK = `not a ${REQUEST_LINK_SCHEME}://${REQUEST_LINK_ACTION
  */
 const RETIRED_LINK_SCHEME = "eupi";
 
-const RETIRED_LINK_NOTICE =
-  "this link was shared before the app was renamed to Euvena; ask for a fresh link or code";
 
 /**
  * Wraps an EPC069-12 payload into the link form of the same request.
@@ -83,7 +82,7 @@ export function parseRequestLink(link: string): ParsedRequestLink {
   // lowercase, and parsers pass this part of a custom-scheme link through as
   // written.
   const scheme = trimmed.slice(0, schemeEnd).toLowerCase();
-  if (scheme === RETIRED_LINK_SCHEME) return { ok: false, reason: RETIRED_LINK_NOTICE };
+  if (scheme === RETIRED_LINK_SCHEME) return { ok: false, reason: { code: "linkRetired" } };
   if (scheme !== REQUEST_LINK_SCHEME) {
     return { ok: false, reason: NOT_A_REQUEST_LINK };
   }
@@ -101,7 +100,7 @@ export function parseRequestLink(link: string): ParsedRequestLink {
 
   const encoded = findParameter(query, REQUEST_LINK_PARAM);
   if (encoded === undefined) {
-    return { ok: false, reason: "the link carries no payment request" };
+    return { ok: false, reason: { code: "linkNoRequest" } };
   }
 
   let payload: string;
@@ -110,7 +109,7 @@ export function parseRequestLink(link: string): ParsedRequestLink {
   } catch {
     // decodeURIComponent throws a URIError on a truncated or malformed escape,
     // which is what a link mangled in transit looks like.
-    return { ok: false, reason: "the link is damaged and cannot be read" };
+    return { ok: false, reason: { code: "linkDamaged" } };
   }
 
   try {
@@ -120,7 +119,7 @@ export function parseRequestLink(link: string): ParsedRequestLink {
       // The codec's message can repeat the input it rejected, and a link's
       // payload is someone else's writing. Describe it instead, the way
       // validatePayee replaces messages that would echo a typed value.
-      return { ok: false, reason: "the link does not carry a valid payment request" };
+      return { ok: false, reason: { code: "linkInvalid" } };
     }
     throw error;
   }
@@ -152,7 +151,12 @@ function findParameter(query: string, name: string): string | undefined {
  * carries the request; both are built from the decoded payload, so neither can
  * drift from the code.
  */
-export function buildShareMessage(data: EpcQrData, payload: string): string {
-  const lines = summarizeRequest(data).map((row) => `${row.label}: ${row.value}`);
+export function buildShareMessage(
+  data: EpcQrData,
+  payload: string,
+  strings: Dictionary,
+  tag: string,
+): string {
+  const lines = summarizeRequest(data, strings, tag).map((row) => `${row.label}: ${row.value}`);
   return `${lines.join("\n")}\n\n${buildRequestLink(payload)}`;
 }

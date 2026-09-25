@@ -15,6 +15,8 @@ import {
   encodeEpcQr,
 } from "@euvena/qr";
 
+import { formatMoney, type Dictionary } from "../i18n";
+
 /**
  * EPC069-12 element 10 (structured creditor reference) and element 11
  * (unstructured remittance text) are mutually exclusive, so the form offers
@@ -72,7 +74,7 @@ export function normalizePayee(payee: Payee): Payee {
  * form is a state and not a mistake. Messages that would echo the typed value
  * are replaced with a description of what the element must look like.
  */
-export function validatePayee(payee: Payee): PayeeIssues {
+export function validatePayee(payee: Payee, strings: Dictionary): PayeeIssues {
   const { name, iban, bic } = normalizePayee(payee);
   const issues: PayeeIssues = {};
 
@@ -83,25 +85,47 @@ export function validatePayee(payee: Payee): PayeeIssues {
     for (const issue of error.issues) {
       if (!PAYEE_FIELDS.has(issue.element)) continue;
       const field = issue.element as PayeeField;
-      issues[field] ??= describePayeeIssue(field, issue.message, { name, iban, bic });
+      issues[field] ??= describePayeeIssue(field, { name, iban, bic }, strings);
     }
   }
 
-  if (name === "") issues.name = "Enter the beneficiary name";
-  if (iban === "") issues.iban = "Enter the IBAN";
+  if (name === "") issues.name = strings.payeeIssues.enterName;
+  if (iban === "") issues.iban = strings.payeeIssues.enterIban;
   return issues;
 }
 
-function describePayeeIssue(field: PayeeField, message: string, payee: Payee): string {
+function describePayeeIssue(field: PayeeField, payee: Payee, strings: Dictionary): string {
   switch (field) {
     case "iban":
-      return "Check digits or length do not match ISO 13616";
+      return strings.payeeIssues.ibanChecks;
     case "bic":
-      return payee.bic === ""
-        ? "A BIC is required for accounts in SEPA countries outside the EEA"
-        : "A BIC is 8 or 11 characters: 6 letters, then letters or digits";
+      return payee.bic === "" ? strings.payeeIssues.bicRequired : strings.payeeIssues.bicShape;
+    case "name":
+      return strings.payeeIssues.nameShape;
+  }
+}
+
+/**
+ * Words an encoder issue for the user. The codec's own message can echo the
+ * typed value, and it is English, so each element the form can fill gets
+ * the wallet's description of what it must look like.
+ */
+function describeFormIssue(issue: EpcQrIssue, payee: Payee, strings: Dictionary): EpcQrIssue {
+  const { element } = issue;
+  if (element === "name" || element === "iban" || element === "bic") {
+    return { element, message: describePayeeIssue(element, payee, strings) };
+  }
+  switch (element) {
+    case "text":
+      return { element, message: strings.payeeIssues.textShape };
+    case "reference":
+      return { element, message: strings.payeeIssues.referenceShape };
+    case "amount":
+      return { element, message: strings.payeeIssues.amountRange };
+    case "payload":
+      return { element, message: strings.payeeIssues.requestTooLong };
     default:
-      return message.charAt(0).toUpperCase() + message.slice(1);
+      return { element, message: strings.payeeIssues.unencodable };
   }
 }
 
@@ -125,14 +149,18 @@ export function normalizeAmountInput(input: string): string {
  * An empty amount is not an error: EPC069-12 keeps element 8 optional so the
  * payer can enter the amount in their own banking app.
  */
-export function buildPaymentRequest(payee: Payee, form: RequestForm): BuildRequestResult {
+export function buildPaymentRequest(
+  payee: Payee,
+  form: RequestForm,
+  strings: Dictionary,
+): BuildRequestResult {
   const issues: EpcQrIssue[] = [];
 
   // Same check the settings form runs, so a payee that saved will encode and a
   // payee that cannot encode is reported against its field, not against the code.
   const { name, iban, bic } = normalizePayee(payee);
-  for (const [element, message] of Object.entries(validatePayee(payee))) {
-    issues.push({ element, message: `${message} (payee settings)` });
+  for (const [element, message] of Object.entries(validatePayee(payee, strings))) {
+    issues.push({ element, message: `${message} ${strings.payeeIssues.inPayeeSettings}` });
   }
 
   // encodeEpcQr throws a RangeError on an unparseable amount before it reports
@@ -140,7 +168,7 @@ export function buildPaymentRequest(payee: Payee, form: RequestForm): BuildReque
   const amount = normalizeAmountInput(form.amount);
   const hasAmount = amount !== "";
   if (hasAmount && !isValidAmountString(amount)) {
-    issues.push({ element: "amount", message: "amount must be between 0.01 and 999999999.99 euro" });
+    issues.push({ element: "amount", message: strings.payeeIssues.amountRange });
   }
 
   const remittance = form.remittance.trim();
@@ -162,7 +190,13 @@ export function buildPaymentRequest(payee: Payee, form: RequestForm): BuildReque
     });
     return { ok: true, payload, data: decodeEpcQr(payload).data };
   } catch (error) {
-    if (error instanceof EpcQrError) return { ok: false, issues: error.issues };
+    if (error instanceof EpcQrError) {
+      const normalized = { name, iban, bic };
+      return {
+        ok: false,
+        issues: error.issues.map((issue) => describeFormIssue(issue, normalized, strings)),
+      };
+    }
     throw error;
   }
 }
@@ -183,24 +217,22 @@ export interface RequestRow {
  * purpose or information element of its own, but the scan side reviews codes
  * from anywhere, and a review that drops elements is not a review.
  */
-export function summarizeRequest(data: EpcQrData): RequestRow[] {
+export function summarizeRequest(data: EpcQrData, strings: Dictionary, tag: string): RequestRow[] {
+  const labels = strings.rows;
   const rows: RequestRow[] = [
-    { label: "Payee", value: data.name },
-    { label: "IBAN", value: formatIbanForDisplay(data.iban) },
+    { label: labels.payee, value: data.name },
+    { label: labels.iban, value: formatIbanForDisplay(data.iban) },
   ];
-  if (data.bic !== undefined) rows.push({ label: "BIC", value: data.bic });
+  if (data.bic !== undefined) rows.push({ label: labels.bic, value: data.bic });
   rows.push({
-    label: "Amount",
-    value:
-      data.amount === undefined
-        ? "entered by the payer"
-        : `EUR ${formatAmountForDisplay(data.amount)}`,
+    label: labels.amount,
+    value: data.amount === undefined ? labels.payerDecides : formatMoney(data.amount, tag),
   });
-  if (data.purpose !== undefined) rows.push({ label: "Purpose", value: data.purpose });
-  if (data.reference !== undefined) rows.push({ label: "Reference", value: data.reference });
-  if (data.text !== undefined) rows.push({ label: "Text", value: data.text });
+  if (data.purpose !== undefined) rows.push({ label: labels.purpose, value: data.purpose });
+  if (data.reference !== undefined) rows.push({ label: labels.reference, value: data.reference });
+  if (data.text !== undefined) rows.push({ label: labels.text, value: data.text });
   if (data.information !== undefined) {
-    rows.push({ label: "Information", value: data.information });
+    rows.push({ label: labels.information, value: data.information });
   }
   return rows;
 }
@@ -210,14 +242,3 @@ export function formatIbanForDisplay(iban: string): string {
   return iban.replace(/(.{4})/g, "$1 ").trim();
 }
 
-/**
- * Formats a payload amount for display. The codec drops trailing zeros
- * ("12.30" becomes "12.3"), which is right on the wire and wrong on screen
- * next to a QR code that stands in for an invoice.
- */
-export function formatAmountForDisplay(amount: string): string {
-  const value = Number(amount);
-  if (!Number.isFinite(value)) return amount;
-  const [whole = "0", cents = ""] = value.toFixed(2).split(".");
-  return `${whole},${cents}`;
-}

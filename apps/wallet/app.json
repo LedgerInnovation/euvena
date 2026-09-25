@@ -47,7 +47,13 @@
           }
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": ["en", "de", "fr", "es", "it", "nl", "pl"]
+        }
+      ]
     ]
   }
 }
