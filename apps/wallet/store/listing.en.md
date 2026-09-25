@@ -48,6 +48,10 @@ Euvena is open source. The code and the payment code library behind it are on Gi
 
 Finance (both stores)
 
+## Privacy policy URL
+
+https://ledgerinnovation.com/euvena/privacy/
+
 ## Support URL
 
 https://github.com/LedgerInnovation/euvena/issues

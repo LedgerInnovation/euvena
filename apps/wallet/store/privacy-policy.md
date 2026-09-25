@@ -1,17 +1,17 @@
 # Euvena privacy policy
 
 Both stores require a privacy policy at a public address, even for an app that collects nothing.
-This is its text. The operator's legal name, address and contact are filled in where it is
-published.
+This is its text, published at https://ledgerinnovation.com/euvena/privacy/ from the
+LedgerInnovation/ledgerinnovation site repository. A change here goes there too, with a new date.
 
 ---
 
 # Privacy policy for Euvena
 
-Last updated: [date of publication]
+Last updated: 25 September 2026
 
 Euvena is a mobile app for requesting and paying SEPA credit transfers with payment QR codes. It
-is published by [legal name and address of the publisher] ("we").
+is published by Ledger Innovation MB, Lithuania, European Union ("we").
 
 ## What we collect
 
@@ -29,7 +29,8 @@ What you enter is stored on your device, by the app:
 
 We cannot see this data. If you use device backups, such as iCloud Backup or Android backup to
 your Google account, it is included in your own backup like other app data, which we cannot
-access either. It is removed from the device when you remove it in the app or uninstall the app.
+access either. It is removed from the device when you remove it in the app or uninstall the app. On Android, a
+file you export can stay in the app's cache until the system clears it or the app is uninstalled.
 
 ## Camera
 
@@ -63,4 +64,4 @@ If this policy changes, the new version is published at this address with a new 
 
 ## Contact
 
-[contact address for privacy questions]
+Ledger Innovation MB, Lithuania, European Union. info@ledgerinnovation.com

@@ -109,6 +109,12 @@
       "it": "./locales/it.json",
       "nl": "./locales/nl.json",
       "pl": "./locales/pl.json"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5d1fb5f6-c4c7-4aeb-90f3-fbba59a0db6a"
+      }
+    },
+    "owner": "feruzm"
   }
 }
