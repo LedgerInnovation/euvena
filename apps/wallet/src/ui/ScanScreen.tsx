@@ -39,7 +39,6 @@ const ARM_DELAY_MS = 500;
 interface ScanScreenProps {
   /** The latest request the app was opened with. It can change while the screen is open. */
   opened: OpenedRequest | null;
-  onBack: () => void;
 }
 
 /**
@@ -54,7 +53,7 @@ interface ScanScreenProps {
  * lands on the same review and starts nothing by itself: the handoff waits
  * for the payer.
  */
-export function ScanScreen({ opened, onBack }: ScanScreenProps) {
+export function ScanScreen({ opened }: ScanScreenProps) {
   const [result, setResult] = useState<ReadRequestResult | null>(opened?.result ?? null);
   // The last opened request this screen has dealt with, whether it showed it,
   // found it identical to what was shown or the payer moved past it.
@@ -95,13 +94,12 @@ export function ScanScreen({ opened, onBack }: ScanScreenProps) {
   return (
     <Screen>
       <Header
-        title={result?.ok === true ? "Review request" : "Scan a request"}
+        title={result?.ok === true ? "Review request" : "Pay a request"}
         subtitle={
           result?.ok === true
-            ? "Nothing has been paid or sent. Handing the request to a banking app waits for you."
-            : "Reads a payment code or a shared request and shows what it says. Reading pays nothing and sends nothing."
+            ? "Nothing has been paid or sent yet. Handing it to a banking app waits for you."
+            : "Read a code or a shared request. Reading pays nothing and sends nothing."
         }
-        action={{ label: "Request money", onPress: onBack }}
       />
 
       {waiting === null ? null : (

@@ -11,6 +11,8 @@ import {
   type ViewStyle,
 } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from "react-native-svg";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BRAND_BLUE, BRAND_BLUE_DEEP, BRAND_SKY, BRAND_SKY_DEEP, useTheme } from "./theme";
 
@@ -57,17 +59,50 @@ export function Screen({ children }: { children: ReactNode }) {
   );
 }
 
+/** A glyph name from the Ionicons set bundled with Expo. */
+export type IconName = keyof typeof Ionicons.glyphMap;
+
 interface HeaderProps {
   title: string;
   subtitle?: string | undefined;
-  action?: { label: string; onPress: () => void; disabled?: boolean | undefined } | undefined;
+  /** Trailing action. With an icon, the label is read by assistive technology only. */
+  action?:
+    | { label: string; onPress: () => void; disabled?: boolean | undefined; icon?: IconName }
+    | undefined;
+  /** Leading link back to where the screen was opened from. */
+  back?: { label: string; onPress: () => void; disabled?: boolean | undefined } | undefined;
 }
 
 /** The screen title beside the logo mark, with an optional action on the right. */
-export function Header({ title, subtitle, action }: HeaderProps) {
+export function Header({ title, subtitle, action, back }: HeaderProps) {
   const theme = useTheme();
   return (
     <View style={styles.header}>
+      {back === undefined ? null : (
+        <Pressable
+          onPress={back.onPress}
+          disabled={back.disabled === true}
+          accessibilityRole="button"
+          accessibilityLabel={`Back to ${back.label}`}
+          accessibilityState={{ disabled: back.disabled === true }}
+          hitSlop={12}
+          style={styles.back}
+        >
+          {({ pressed }) => (
+            <>
+              <Ionicons name="chevron-back" size={20} color={theme.link} />
+              <Text
+                style={[
+                  styles.headerAction,
+                  { color: theme.link, opacity: pressed || back.disabled === true ? 0.5 : 1 },
+                ]}
+              >
+                {back.label}
+              </Text>
+            </>
+          )}
+        </Pressable>
+      )}
       <View style={styles.headerRow}>
         <View style={styles.headerTitle}>
           <LogoMark size={26} />
@@ -78,19 +113,29 @@ export function Header({ title, subtitle, action }: HeaderProps) {
             onPress={action.onPress}
             disabled={action.disabled === true}
             accessibilityRole="button"
+            accessibilityLabel={action.label}
             accessibilityState={{ disabled: action.disabled === true }}
             hitSlop={12}
           >
-            {({ pressed }) => (
-              <Text
-                style={[
-                  styles.headerAction,
-                  { color: theme.link, opacity: pressed || action.disabled === true ? 0.5 : 1 },
-                ]}
-              >
-                {action.label}
-              </Text>
-            )}
+            {({ pressed }) =>
+              action.icon === undefined ? (
+                <Text
+                  style={[
+                    styles.headerAction,
+                    { color: theme.link, opacity: pressed || action.disabled === true ? 0.5 : 1 },
+                  ]}
+                >
+                  {action.label}
+                </Text>
+              ) : (
+                <Ionicons
+                  name={action.icon}
+                  size={26}
+                  color={theme.link}
+                  style={{ opacity: pressed || action.disabled === true ? 0.5 : 1 }}
+                />
+              )
+            }
           </Pressable>
         )}
       </View>
@@ -342,6 +387,106 @@ export function Rows({ rows, struck = false }: { rows: RowItem[]; struck?: boole
   );
 }
 
+export interface Tab<K extends string> {
+  key: K;
+  label: string;
+  icon: IconName;
+  /** The filled glyph shown while selected. */
+  selectedIcon: IconName;
+}
+
+/**
+ * The bar at the foot of the top-level screens. It sits outside the
+ * scrolling content and takes the bottom inset itself.
+ */
+export function TabBar<K extends string>({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: readonly Tab<K>[];
+  active: K;
+  onChange: (key: K) => void;
+}) {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      style={[
+        styles.tabBar,
+        {
+          backgroundColor: theme.surface,
+          borderTopColor: theme.border,
+          paddingBottom: Math.max(insets.bottom, 10),
+        },
+      ]}
+      accessibilityRole="tablist"
+    >
+      {tabs.map((tab) => {
+        const selected = tab.key === active;
+        return (
+          <Pressable
+            key={tab.key}
+            onPress={() => onChange(tab.key)}
+            accessibilityRole="tab"
+            accessibilityLabel={tab.label}
+            accessibilityState={{ selected }}
+            style={({ pressed }) => [styles.tab, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <Ionicons
+              name={selected ? tab.selectedIcon : tab.icon}
+              size={24}
+              color={selected ? theme.link : theme.muted}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                { color: selected ? theme.link : theme.muted },
+                selected ? styles.tabLabelSelected : null,
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** A row that opens another screen, for lists of settings. */
+export function NavRow({
+  label,
+  detail,
+  onPress,
+}: {
+  label: string;
+  /** What the row currently holds, in a word or two. */
+  detail?: string | undefined;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={detail === undefined ? label : `${label}, ${detail}`}
+      style={({ pressed }) => [
+        styles.navRow,
+        { backgroundColor: pressed ? theme.pressedSoft : "transparent" },
+      ]}
+    >
+      <Text style={[styles.navRowLabel, { color: theme.text }]}>{label}</Text>
+      {detail === undefined ? null : (
+        <Text style={[styles.navRowDetail, { color: theme.muted }]} numberOfLines={1}>
+          {detail}
+        </Text>
+      )}
+      <Ionicons name="chevron-forward" size={18} color={theme.muted} />
+    </Pressable>
+  );
+}
+
 /** A small text action, such as Copy or Change, in the primary colour. */
 export function TextAction({
   label,
@@ -402,6 +547,51 @@ const styles = StyleSheet.create({
   headerAction: {
     fontSize: 15,
     fontWeight: "600",
+  },
+  back: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginLeft: -6,
+    marginBottom: 2,
+  },
+  tabBar: {
+    flexDirection: "row",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 8,
+    paddingHorizontal: 8,
+  },
+  tab: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: 2,
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  tabLabelSelected: {
+    fontWeight: "700",
+  },
+  navRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    marginHorizontal: -4,
+    borderRadius: 8,
+  },
+  navRowLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    flexShrink: 0,
+  },
+  navRowDetail: {
+    flex: 1,
+    fontSize: 14,
+    textAlign: "right",
   },
   subtitle: {
     fontSize: 14,

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, BackHandler, StyleSheet, View } from "react-native";
 
 import {
   EMPTY_PAYEE,
@@ -43,6 +43,15 @@ export function PayeeScreen({
   const [removing, setRemoving] = useState(false);
   const [removeFailed, setRemoveFailed] = useState(false);
   const busy = saving || removing;
+  // The system back on Android is Cancel, and like Cancel it waits while a
+  // write runs: leaving then would hide the outcome of the write.
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!busy) onCancel();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [busy, onCancel]);
 
   // The encoder decides what can be saved, so nothing that saves can fail to
   // encode on the request screen. Empty fields disable Save without shouting.

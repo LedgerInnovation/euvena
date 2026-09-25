@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, BackHandler, Keyboard, StyleSheet, View } from "react-native";
 import * as Linking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -19,22 +19,59 @@ import {
 import { loadHistory, loadPayeeBook, saveHistory, savePayeeBook } from "./src/settings/storage";
 import { useCommittedStore } from "./src/ui/committed";
 import { HistoryScreen } from "./src/ui/HistoryScreen";
+import { type Tab, TabBar } from "./src/ui/kit";
 import { PayeeScreen } from "./src/ui/PayeeScreen";
 import { PayeesScreen } from "./src/ui/PayeesScreen";
 import { RequestScreen } from "./src/ui/RequestScreen";
 import { ScanScreen } from "./src/ui/ScanScreen";
+import { SettingsScreen } from "./src/ui/SettingsScreen";
 import { useTheme } from "./src/ui/theme";
 
-/** The payee form edits the payee at an index, or a new one when null. */
+/** The three places the bar at the foot of the screen switches between. */
+type TabKey = "request" | "pay" | "history";
+
+const TABS: readonly Tab<TabKey>[] = [
+  { key: "request", label: "Request", icon: "qr-code-outline", selectedIcon: "qr-code" },
+  { key: "pay", label: "Pay", icon: "scan-outline", selectedIcon: "scan" },
+  { key: "history", label: "History", icon: "time-outline", selectedIcon: "time" },
+];
+
+/** Where the payee screens were entered from, which is where leaving them returns to. */
+type Origin = "tab" | "settings";
+
+/**
+ * What is on screen: the tabs, or a screen opened over them, which hides the
+ * bar until it is left. The payee form edits the payee at an index, or a new
+ * one when null; it remembers whether it was opened from the payees list, so
+ * that Cancel, Save and Remove return to where the user came from.
+ */
 type Screen =
-  | { name: "request" }
-  | { name: "payees" }
-  | { name: "payee"; editing: number | null }
-  | { name: "scan" }
-  | { name: "history" };
+  | { name: "tab" }
+  | { name: "settings" }
+  | { name: "payees"; origin: Origin }
+  | { name: "payee"; editing: number | null; origin: Origin; fromList: boolean };
 
 const READ_FAILED_NOTICE =
   "Saved settings could not be read from this device. Enter them again to build a code.";
+
+/** Where the payee form returns to when it is left without a change. */
+function leavePayeeForm(screen: Screen & { name: "payee" }): Screen {
+  if (screen.fromList) return { name: "payees", origin: screen.origin };
+  return screen.origin === "settings" ? { name: "settings" } : { name: "tab" };
+}
+
+/** Where a payee just saved leads: back to a list where there was one, else to the tab. */
+function afterPayeeSaved(screen: Screen & { name: "payee" }): Screen {
+  if (screen.fromList || screen.origin === "settings") {
+    return { name: "payees", origin: screen.origin };
+  }
+  return { name: "tab" };
+}
+
+/** Where the payees list returns to. */
+function leavePayees(screen: Screen & { name: "payees" }): Screen {
+  return screen.origin === "settings" ? { name: "settings" } : { name: "tab" };
+}
 
 // The splash stays up until the settings are read, so the first frame is a
 // screen rather than a spinner. Expo Go has no splash of its own to hold, and
@@ -49,8 +86,12 @@ export default function App() {
   });
   const history = useCommittedStore<HistoryEntry[]>([], saveHistory);
   const [loaded, setLoaded] = useState(false);
-  const [screen, setScreen] = useState<Screen>({ name: "request" });
+  const [tab, setTab] = useState<TabKey>("request");
+  const [screen, setScreen] = useState<Screen>({ name: "tab" });
   const [opened, setOpened] = useState<OpenedRequest | null>(null);
+  // Bumped when the History tab is chosen while already showing, so an open
+  // entry returns to the list.
+  const [historyListRequested, setHistoryListRequested] = useState(0);
   // Outlives a remount of the effect, so arrival numbers never repeat.
   const arrivals = useRef(0);
   const theme = useTheme();
@@ -59,12 +100,16 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    // The settings read below only redirects from the start screen, so a link
-    // that is already on screen keeps it.
-    const leaveStart = () =>
-      setScreen((current) =>
-        current.name === "request" ? { name: "payee", editing: null } : current,
-      );
+    // The settings read below only redirects from the start screen. A link
+    // that has arrived is on screen already and keeps it: paying needs no
+    // payee, so the form must not cover the review.
+    const leaveStart = () => {
+      if (arrivals.current > 0) return;
+      setScreen((current) => {
+        if (current.name !== "tab") return current;
+        return { name: "payee", editing: null, origin: "tab", fromList: false };
+      });
+    };
 
     const openLink = (url: string | null) => {
       const result = readOpenedLink(url);
@@ -74,7 +119,8 @@ export default function App() {
       Linking.clearInitialURL();
       arrivals.current += 1;
       setOpened({ id: arrivals.current, result });
-      setScreen({ name: "scan" });
+      setTab("pay");
+      setScreen({ name: "tab" });
     };
 
     // Subscribed before the launch link is read, so a link that arrives in
@@ -84,8 +130,7 @@ export default function App() {
     // The launch link is read from the native side, which also holds a link
     // that arrived before JavaScript was listening, such as one that restarted
     // the app after the system had stopped it. It is read before the settings,
-    // so a request opened by link goes straight to review, first run included:
-    // paying needs no payee.
+    // so a request opened by link goes straight to review, first run included.
     openLink(Linking.getLinkingURL());
 
     const bookRead = loadPayeeBook()
@@ -129,11 +174,27 @@ export default function App() {
     if (loaded) SplashScreen.hideAsync().catch(() => undefined);
   }, [loaded]);
 
+  // The system back gesture or button on Android leaves a screen opened over
+  // the tabs the way its own back link does. On the tabs it keeps its meaning,
+  // and the payee form handles it itself, since Cancel waits while it writes.
+  useEffect(() => {
+    if (screen.name !== "settings" && screen.name !== "payees") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      setScreen((current) => {
+        if (current.name === "settings") return { name: "tab" };
+        if (current.name === "payees") return leavePayees(current);
+        return current;
+      });
+      return true;
+    });
+    return () => subscription.remove();
+  }, [screen.name]);
+
   // Each write rejects when it fails, so the screen can keep its draft and
   // report it instead of moving on from settings that were never persisted.
-  // A payee just saved becomes the active one and the form returns to the
-  // request screen; a link opened while the write was running has moved on
-  // to its review and is left alone.
+  // A payee just saved becomes the active one and the form is left; a link
+  // opened while the write was running has moved on to its review and is left
+  // alone.
   const onSavePayee = useCallback(
     async (editing: number | null, payee: Payee) => {
       await commitBook((current) => {
@@ -143,14 +204,16 @@ export default function App() {
         if (next === current) throw new Error("the payee was not saved");
         return next;
       });
-      setScreen((current) => (current.name === "payee" ? { name: "request" } : current));
+      setScreen((current) => (current.name === "payee" ? afterPayeeSaved(current) : current));
     },
     [commitBook],
   );
   const onRemovePayee = useCallback(
     async (index: number) => {
       await commitBook((current) => removePayeeAt(current, index));
-      setScreen((current) => (current.name === "payee" ? { name: "payees" } : current));
+      setScreen((current) =>
+        current.name === "payee" ? { name: "payees", origin: current.origin } : current,
+      );
     },
     [commitBook],
   );
@@ -169,61 +232,115 @@ export default function App() {
   );
 
   const payees = book.value.payees;
-  // Where the payee card on the request screen leads: straight to the form
-  // while there is nothing to choose from, otherwise to the list.
-  const choosePayee = () =>
-    setScreen(payees.length === 0 ? { name: "payee", editing: null } : { name: "payees" });
+  // Where a payee card or row leads: straight to the form while there is
+  // nothing to choose from, otherwise to the list.
+  const choosePayee = (origin: Origin) =>
+    setScreen(
+      payees.length === 0
+        ? { name: "payee", editing: null, origin, fromList: false }
+        : { name: "payees", origin },
+    );
+  const activeName = payees.length === 0 ? null : activePayee(book.value).name;
+
+  const onTab = (next: TabKey) => {
+    if (next === tab) {
+      if (next === "history") setHistoryListRequested((count) => count + 1);
+      return;
+    }
+    // A field on the tab being left would keep the focus while hidden.
+    Keyboard.dismiss();
+    // Paying by choice starts from the camera, not from a link reviewed
+    // earlier.
+    if (next === "pay") setOpened(null);
+    setTab(next);
+  };
 
   // The safe-area library insets on both platforms; the SafeAreaView built
-  // into React Native is iOS-only, and Android draws edge to edge.
+  // into React Native is iOS-only, and Android draws edge to edge. The bar at
+  // the foot takes the bottom inset itself, so the outer view leaves it out
+  // and the screens opened over the tabs take it back.
   return (
     <SafeAreaProvider>
       <View style={[styles.root, { backgroundColor: theme.background }]}>
-        <SafeAreaView style={styles.root}>
+        <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
           <StatusBar style="auto" />
           {!loaded ? (
             <ActivityIndicator style={styles.loading} color={theme.primary} />
           ) : screen.name === "payee" ? (
-            <PayeeScreen
-              key={screen.editing ?? "new"}
-              payee={screen.editing === null ? undefined : payees[screen.editing]}
-              onSave={(payee) => onSavePayee(screen.editing, payee)}
-              onRemove={screen.editing === null ? undefined : onRemovePayee.bind(null, screen.editing)}
-              onCancel={() => setScreen(payees.length === 0 ? { name: "request" } : { name: "payees" })}
-              notice={book.loadFailed ? READ_FAILED_NOTICE : null}
-            />
+            <SafeAreaView style={styles.root} edges={["bottom"]}>
+              <PayeeScreen
+                key={screen.editing ?? "new"}
+                payee={screen.editing === null ? undefined : payees[screen.editing]}
+                onSave={(payee) => onSavePayee(screen.editing, payee)}
+                onRemove={
+                  screen.editing === null ? undefined : onRemovePayee.bind(null, screen.editing)
+                }
+                onCancel={() => setScreen(leavePayeeForm(screen))}
+                notice={book.loadFailed ? READ_FAILED_NOTICE : null}
+              />
+            </SafeAreaView>
           ) : screen.name === "payees" ? (
-            <PayeesScreen
-              book={book.value}
-              onUse={onUsePayee}
-              onEdit={(index) => setScreen({ name: "payee", editing: index })}
-              onAdd={() => setScreen({ name: "payee", editing: null })}
-              onBack={() => setScreen({ name: "request" })}
-            />
-          ) : screen.name === "scan" ? (
-            <ScanScreen opened={opened} onBack={() => setScreen({ name: "request" })} />
-          ) : screen.name === "history" ? (
-            <HistoryScreen
-              entries={history.value}
-              loadFailed={history.loadFailed}
-              onMark={onMark}
-              onBack={() => setScreen({ name: "request" })}
-            />
+            <SafeAreaView style={styles.root} edges={["bottom"]}>
+              <PayeesScreen
+                book={book.value}
+                onUse={onUsePayee}
+                onEdit={(index) =>
+                  setScreen({ name: "payee", editing: index, origin: screen.origin, fromList: true })
+                }
+                onAdd={() =>
+                  setScreen({ name: "payee", editing: null, origin: screen.origin, fromList: true })
+                }
+                from={screen.origin === "settings" ? "Settings" : "Request"}
+                onBack={() => setScreen(leavePayees(screen))}
+              />
+            </SafeAreaView>
+          ) : screen.name === "settings" ? (
+            <SafeAreaView style={styles.root} edges={["bottom"]}>
+              <SettingsScreen
+                payeeCount={payees.length}
+                activeName={activeName}
+                onPayees={() => choosePayee("settings")}
+                onBack={() => setScreen({ name: "tab" })}
+              />
+            </SafeAreaView>
           ) : (
-            <RequestScreen
-              payee={activePayee(book.value)}
-              payeeCount={payees.length}
-              onEditPayee={choosePayee}
-              onRepairPayee={() => setScreen({ name: "payee", editing: book.value.active })}
-              onHistory={() => setScreen({ name: "history" })}
-              onKeep={onKeep}
-              onScan={() => {
-                // Scanning by choice starts from the camera, not from a link
-                // reviewed earlier.
-                setOpened(null);
-                setScreen({ name: "scan" });
-              }}
-            />
+            <>
+              {/* Request and History stay mounted while another tab shows, so
+                  a draft or an open entry survives a look elsewhere. Pay
+                  mounts when chosen, since a hidden camera would stay on. */}
+              <View style={[styles.root, tab === "request" ? null : styles.hidden]}>
+                <RequestScreen
+                  payee={activePayee(book.value)}
+                  payeeCount={payees.length}
+                  onEditPayee={() => choosePayee("tab")}
+                  onRepairPayee={() =>
+                    setScreen({
+                      name: "payee",
+                      editing: book.value.active,
+                      origin: "tab",
+                      fromList: false,
+                    })
+                  }
+                  onSettings={() => setScreen({ name: "settings" })}
+                  onKeep={onKeep}
+                />
+              </View>
+              {tab === "pay" ? (
+                <View style={styles.root}>
+                  <ScanScreen opened={opened} />
+                </View>
+              ) : null}
+              <View style={[styles.root, tab === "history" ? null : styles.hidden]}>
+                <HistoryScreen
+                  entries={history.value}
+                  loadFailed={history.loadFailed}
+                  onMark={onMark}
+                  listRequested={historyListRequested}
+                  active={tab === "history"}
+                />
+              </View>
+              <TabBar tabs={TABS} active={tab} onChange={onTab} />
+            </>
           )}
         </SafeAreaView>
       </View>
@@ -234,6 +351,9 @@ export default function App() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  hidden: {
+    display: "none",
   },
   loading: {
     flex: 1,

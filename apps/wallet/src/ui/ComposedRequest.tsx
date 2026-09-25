@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Share, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Share, StyleSheet, View, useWindowDimensions } from "react-native";
 import { EPC069_MAX_BYTES, byteLength, type EpcQrData } from "@euvena/qr";
 
 import { buildShareMessage } from "../epc/link";
@@ -10,7 +10,7 @@ import {
   toQrSymbol,
   type QrSymbol,
 } from "../qr/symbol";
-import { Button, Card, Hint, Problem, Rows, SectionLabel } from "./kit";
+import { Button, Card, Hint, Problem, Rows, SectionLabel, TextAction } from "./kit";
 import { QrCode } from "./QrCode";
 
 /**
@@ -42,6 +42,12 @@ interface ComposedRequestProps {
    * history, so re-sharing it does not add it again.
    */
   onKeep?: ((payload: string) => Promise<void>) | undefined;
+  /**
+   * Shows the decoded values behind a toggle. The request screen uses this,
+   * since the form the values came from is right above; the history shows
+   * them open, since there the code is all there is.
+   */
+  compact?: boolean | undefined;
 }
 
 /**
@@ -50,7 +56,7 @@ interface ComposedRequestProps {
  * composing this way, and the history shows a kept one the same way, so what
  * is re-shared later is exactly what was shown at the time.
  */
-export function ComposedRequest({ payload, data, onKeep }: ComposedRequestProps) {
+export function ComposedRequest({ payload, data, onKeep, compact = false }: ComposedRequestProps) {
   const { width } = useWindowDimensions();
   const rendered = useMemo(() => buildSymbol(payload), [payload]);
   const codeSize = Math.min(width - 104, 280);
@@ -67,10 +73,10 @@ export function ComposedRequest({ payload, data, onKeep }: ComposedRequestProps)
     <>
       <QrCodeCard symbol={rendered.symbol} size={codeSize} />
       <Card>
-        <DecodedSummary payload={payload} data={data} />
         {/* Keyed on the payload so an error from one request is not left
             standing over the next one. */}
         <ShareRequest key={payload} payload={payload} data={data} onKeep={onKeep} />
+        <DecodedSummary payload={payload} data={data} symbol={rendered.symbol} compact={compact} />
       </Card>
     </>
   );
@@ -82,13 +88,11 @@ export function ComposedRequest({ payload, data, onKeep }: ComposedRequestProps)
  * a matching card.
  */
 function QrCodeCard({ symbol, size }: { symbol: QrSymbol; size: number }) {
+  // The symbol's own figures are read out with the decoded values below the
+  // code, so the card holds nothing but the code.
   return (
     <View style={styles.codeCard}>
       <QrCode symbol={symbol} size={size} />
-      <Text style={styles.codeCaption}>
-        EPC QR, version {symbol.version} of {EPC069_MAX_VERSION}, error correction{" "}
-        {EPC069_ERROR_CORRECTION}
-      </Text>
     </View>
   );
 }
@@ -173,8 +177,7 @@ function ShareRequest({
         />
       )}
       <Hint>
-        The link carries the same payload as the code, so a payer who opens it reads the request
-        the code holds. Nothing is resolved over the network.
+        The link carries the same request as the code.
         {onKeep === undefined ? "" : " A shared request is kept in the history."}
       </Hint>
       {error === null ? null : <Problem>{error}</Problem>}
@@ -186,14 +189,35 @@ function ShareRequest({
  * The decoded payload, in the invoice-style presentation the guidelines
  * recommend printing beside the code.
  */
-function DecodedSummary({ payload, data }: { payload: string; data: EpcQrData }) {
+function DecodedSummary({
+  payload,
+  data,
+  symbol,
+  compact,
+}: {
+  payload: string;
+  data: EpcQrData;
+  symbol: QrSymbol;
+  compact: boolean;
+}) {
+  const [open, setOpen] = useState(!compact);
+  if (!open) {
+    return (
+      <TextAction
+        label="Show what the code says"
+        onPress={() => setOpen(true)}
+        accessibilityLabel="Show what the code says, the values decoded from it"
+      />
+    );
+  }
   return (
     <View style={styles.summary}>
       <SectionLabel>What the code says</SectionLabel>
       <Rows rows={summarizeRequest(data)} />
       <Hint>
         EPC069-12 version {data.version}, UTF-8, {byteLength(payload, data.charset)} of{" "}
-        {EPC069_MAX_BYTES} bytes.
+        {EPC069_MAX_BYTES} bytes. QR version {symbol.version} of {EPC069_MAX_VERSION}, error
+        correction {EPC069_ERROR_CORRECTION}.
       </Hint>
     </View>
   );
@@ -206,10 +230,6 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: "center",
     gap: 10,
-  },
-  codeCaption: {
-    fontSize: 12,
-    color: "#5A6A82",
   },
   summary: {
     gap: 8,

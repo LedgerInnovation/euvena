@@ -14,6 +14,8 @@ interface PayeesScreenProps {
   onUse: (index: number) => Promise<void>;
   onEdit: (index: number) => void;
   onAdd: () => void;
+  /** Where the list was opened from, named on the back link. */
+  from: string;
   onBack: () => void;
 }
 
@@ -22,7 +24,7 @@ interface PayeesScreenProps {
  * for the active payee; the others are a tap away, so requesting into a
  * personal account and a club account does not mean retyping an IBAN.
  */
-export function PayeesScreen({ book, onUse, onEdit, onAdd, onBack }: PayeesScreenProps) {
+export function PayeesScreen({ book, onUse, onEdit, onAdd, from, onBack }: PayeesScreenProps) {
   const [useFailedAt, setUseFailedAt] = useState<number | null>(null);
   const theme = useTheme();
   const full = book.payees.length >= PAYEE_LIMIT;
@@ -41,7 +43,7 @@ export function PayeesScreen({ book, onUse, onEdit, onAdd, onBack }: PayeesScree
       <Header
         title="Payees"
         subtitle="Requests are built for the active payee. All of them stay on this device."
-        action={{ label: "Request money", onPress: onBack }}
+        back={{ label: from, onPress: onBack }}
       />
 
       {book.payees.map((payee, index) => {
