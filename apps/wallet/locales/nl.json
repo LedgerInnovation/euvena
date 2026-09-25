@@ -1,0 +1,5 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "Euvena gebruikt de camera alleen om betaal-QR-codes te lezen op het tabblad ‘Betalen’. Er wordt niets opgenomen of verstuurd."
+  }
+}
