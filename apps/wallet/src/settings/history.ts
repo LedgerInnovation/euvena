@@ -48,6 +48,15 @@ export function parseHistory(stored: string | null): HistoryEntry[] | null {
   } catch {
     return null;
   }
+  return readHistory(value);
+}
+
+/**
+ * Reads a history out of a parsed value. Anything but a list reads as null;
+ * entries that are not well formed are dropped, and a repeated id keeps its
+ * first entry.
+ */
+export function readHistory(value: unknown): HistoryEntry[] | null {
   if (!Array.isArray(value)) return null;
 
   const entries: HistoryEntry[] = [];

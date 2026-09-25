@@ -53,6 +53,15 @@ export function parsePayeeBook(stored: string | null): PayeeBook {
   } catch {
     return EMPTY_BOOK;
   }
+  return readPayeeBook(value);
+}
+
+/**
+ * Reads a book out of a parsed value: an object holding a list of payees and
+ * an active index, or a single payee written by an earlier version. Anything
+ * else reads as an empty book.
+ */
+export function readPayeeBook(value: unknown): PayeeBook {
   if (typeof value !== "object" || value === null) return EMPTY_BOOK;
 
   const record = value as Record<string, unknown>;
@@ -121,7 +130,8 @@ export function setActivePayee(book: PayeeBook, index: number): PayeeBook {
   return { payees: book.payees, active: index };
 }
 
-function readPayee(value: unknown): Payee | null {
+/** Reads one payee out of a parsed value, with empty strings for missing fields. */
+export function readPayee(value: unknown): Payee | null {
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
   return {
@@ -131,6 +141,7 @@ function readPayee(value: unknown): Payee | null {
   };
 }
 
-function pickPayee(payee: Payee): Payee {
+/** The stored fields of a payee and nothing else. */
+export function pickPayee(payee: Payee): Payee {
   return { name: payee.name, iban: payee.iban, bic: payee.bic };
 }
