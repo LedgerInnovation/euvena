@@ -2,10 +2,14 @@ import { useEffect, useState } from "react";
 import { AccessibilityInfo, Linking, StyleSheet, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
-import { type EpcQrData } from "@euvena/qr";
 
-import { buildPaytoUri, handoffFields, type HandoffField } from "../epc/payto";
-import { summarizeRequest } from "../epc/request";
+import {
+  buildPaytoUri,
+  handoffFields,
+  type HandoffField,
+  type TransferDetails,
+} from "../epc/payto";
+import { summarizeRequest, type PaymentCode } from "../epc/request";
 import { describeRejection, type Rejection } from "../i18n";
 import { useLocale } from "../i18n/context";
 import {
@@ -116,7 +120,7 @@ export function ScanScreen({ opened }: ScanScreenProps) {
       ) : result.ok ? (
         // Keyed so a request shown in place of another starts with fresh
         // handoff state rather than the previous one's copy markers.
-        <ReviewPanel key={shownId ?? "read"} data={result.data} onReset={reset} />
+        <ReviewPanel key={shownId ?? "read"} code={result} onReset={reset} />
       ) : (
         <RejectionPanel reason={result.reason} onReset={reset} />
       )}
@@ -211,18 +215,21 @@ function PasteEntry({ onRead }: { onRead: (text: string) => void }) {
 
 /**
  * The decoded request, in the same invoice-style rows the request screen
- * prints beside a code it builds.
+ * prints beside a code it builds. An EN 18184 code is a web address, which a
+ * phone camera would have opened; the review says that it was not.
  */
-function ReviewPanel({ data, onReset }: { data: EpcQrData; onReset: () => void }) {
+function ReviewPanel({ code, onReset }: { code: PaymentCode; onReset: () => void }) {
   const { strings, tag } = useLocale();
+  const poi = code.format === "en18184";
   return (
     <>
       <Card>
         <CardTitle>{strings.composed.whatTheCodeSays}</CardTitle>
-        <Rows rows={summarizeRequest(data, strings, tag)} />
+        <Rows rows={summarizeRequest(code, strings, tag)} />
+        {poi ? <Hint>{strings.scan.poiRead}</Hint> : null}
         <Hint>{strings.scan.reviewHint}</Hint>
       </Card>
-      <HandoffActions data={data} />
+      <HandoffActions data={code.data} instant={poi && code.data.instrument === "INST"} />
       <Button label={strings.scan.readAnother} variant="ghost" onPress={onReset} />
     </>
   );
@@ -235,7 +242,7 @@ function ReviewPanel({ data, onReset }: { data: EpcQrData; onReset: () => void }
  * copy actions are always offered, because even a launched app cannot be
  * prefilled and transfer forms are filled field by field.
  */
-function HandoffActions({ data }: { data: EpcQrData }) {
+function HandoffActions({ data, instant }: { data: TransferDetails; instant: boolean }) {
   const { strings } = useLocale();
   const [opening, setOpening] = useState(false);
   const [noHandler, setNoHandler] = useState(false);
@@ -311,6 +318,9 @@ function HandoffActions({ data }: { data: EpcQrData }) {
           <Rows rows={[row(reference)]} />
         </View>
       )}
+      {/* Neither the payto URI nor a transfer form field carries the kind of
+          transfer, so the payee's ask for an instant one is said out loud. */}
+      {instant ? <Hint>{strings.scan.instantAsked}</Hint> : null}
       <Button
         label={strings.scan.openBankingApp}
         busy={opening}

@@ -22,7 +22,9 @@ function leaves(value: unknown, path: string, out: [string, string][]): void {
     const args: unknown[] =
       fn.length === 0
         ? []
-        : path.endsWith("figures")
+        : path.endsWith("poiFigures")
+          ? [{ characters: 312, qrVersion: 9, correction: "M" }]
+          : path.endsWith("figures")
           ? [{ version: "002", bytes: 12, maxBytes: 331, qrVersion: 5, maxQrVersion: 13, correction: "M" }]
           : path.endsWith("Invalid")
             ? [["a", "b"]]
@@ -127,7 +129,7 @@ describe("rejections", () => {
 
 describe("preferences", () => {
   it("round-trips", () => {
-    const chosen = { appearance: "dark", language: "fr" } as const;
+    const chosen = { appearance: "dark", language: "fr", poi: null } as const;
     expect(parsePreferences(serializePreferences(chosen))).toEqual(chosen);
     expect(parsePreferences(serializePreferences(DEFAULT_PREFERENCES))).toEqual(DEFAULT_PREFERENCES);
   });
@@ -140,10 +142,12 @@ describe("preferences", () => {
     expect(parsePreferences('{"appearance":"blue","language":"pl"}')).toEqual({
       appearance: "system",
       language: "pl",
+      poi: null,
     });
     expect(parsePreferences('{"appearance":"light","language":"xx"}')).toEqual({
       appearance: "light",
       language: null,
+      poi: null,
     });
   });
 });

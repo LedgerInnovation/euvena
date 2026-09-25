@@ -48,12 +48,12 @@ describe("toQrSymbol", () => {
     const largest = "B".repeat(EPC069_MAX_BYTES);
 
     expect(toQrSymbol(largest).version).toBe(EPC069_MAX_VERSION);
-    expect(() => toQrSymbol("B".repeat(EPC069_MAX_BYTES + 1))).toThrow(/guidelines allow/);
+    expect(() => toQrSymbol("B".repeat(EPC069_MAX_BYTES + 1))).toThrow(/up to 13 is allowed/);
   });
 
   it("counts multi-byte characters as the bytes they encode to", () => {
     // 166 two-byte characters fill the same 332 bytes as 332 ASCII ones.
-    expect(() => toQrSymbol("ä".repeat(166))).toThrow(/guidelines allow/);
+    expect(() => toQrSymbol("ä".repeat(166))).toThrow(/up to 13 is allowed/);
   });
 });
 

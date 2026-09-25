@@ -15,6 +15,12 @@ export const pl: Dictionary = {
     text: "tytuł przelewu",
     information: "wiersz informacyjny",
     payload: "ogólna struktura",
+    tradeName: "nazwa handlowa",
+    referenceParty: "strona, w której imieniu pobiera",
+    instrument: "rodzaj przelewu",
+    currency: "waluta",
+    category: "kategoria sprzedawcy",
+    routing: "dane routingu",
     other: "element",
   },
   rows: {
@@ -27,6 +33,24 @@ export const pl: Dictionary = {
     text: "Tytuł",
     information: "Informacja",
     payerDecides: "wpisuje płacący",
+    tradeName: "Nazwa handlowa",
+    onBehalfOf: "W imieniu",
+    onBehalfOfTrade: "W imieniu, nazwa handlowa",
+    transfer: "Przelew",
+    instant: "Natychmiastowy",
+    standard: "Standardowy",
+    category: "Kategoria sprzedawcy",
+    context: "Kontekst płatności",
+    contexts: {
+      m: "W sklepie",
+      e: "Zakup online",
+      i: "Faktura",
+      p: "Między osobami",
+      w: "Strona internetowa",
+    },
+    framework: "Ramy",
+    provider: "Dostawca",
+    issuer: "Wydawca",
   },
   common: {
     cancel: "Anuluj",
@@ -55,6 +79,11 @@ export const pl: Dictionary = {
     requestTooLong: "Żądanie nie mieści się w kodzie. Skróć tekst.",
     unencodable: "Nie udało się zakodować żądania.",
     inPayeeSettings: "(ustawienia odbiorcy)",
+    amountRequired: "Kod EN 18184 zawiera stałą kwotę. Wpisz ją.",
+    poiTextShape: "Do 35 widocznych znaków w jednym wierszu w kodzie EN 18184",
+    poiReferenceShape:
+      "Do 35 znaków; referencja zaczynająca się od RF musi mieć poprawne cyfry kontrolne",
+    poiProfile: "Sprawdź ustawienia EN 18184.",
   },
   rejections: {
     empty: "Nie ma nic do odczytania.",
@@ -83,6 +112,13 @@ export const pl: Dictionary = {
     linkNoRequest: "Link nie zawiera żądania płatności.",
     linkDamaged: "Link jest uszkodzony i nie można go odczytać.",
     linkInvalid: "Link nie zawiera prawidłowego żądania płatności.",
+    poiNot: "Aplikacja nie może odczytać tego adresu jako kodu płatności EN 18184. Nic nie zostało otwarte.",
+    poiInvalid: (elements) =>
+      `Kod EN 18184 nie jest prawidłowym żądaniem płatności. Bez pozytywnej kontroli: ${joinList(elements)}.`,
+    poiNoRequest: "Kod EN 18184 nie zawiera prawidłowego żądania płatności.",
+    poiNeedsProvider:
+      "Ten kod EN 18184 wskazuje odbiorcę przez dostawcę usług płatniczych, a odnaleźć go może tylko aplikacja tego dostawcy. Euvena odczytuje kody, które zawierają pełne dane odbiorcy.",
+    poiNotEuro: "Kod EN 18184 wymaga waluty innej niż euro.",
   },
   request: {
     title: "Poproś o pieniądze",
@@ -110,6 +146,19 @@ export const pl: Dictionary = {
     referencePlaceholder: "RF18539007547034",
     textHint: "Do 140 znaków tekstu",
     referenceHint: "Ustrukturyzowana referencja wierzyciela, do 35 znaków",
+    format: "Format kodu",
+    formatEpc: "QR EPC",
+    formatPoi: "EN 18184",
+    formatEpcHint: "Odczytuje go większość europejskich aplikacji bankowych.",
+    formatPoiHint:
+      "Dla aplikacji w ramach EN 18184. Kod jest adresem internetowym w domenie tych ram i zawiera stałą kwotę.",
+    transfer: "Przelew",
+    instant: "Natychmiastowy",
+    standard: "Standardowy",
+    enterAmount: "Wpisz kwotę",
+    amountRequiredA11y: "Kwota w euro, wymagana dla kodu EN 18184",
+    poiTextHint: "Do 35 znaków tekstu",
+    poiReferenceHint: "Ustrukturyzowana referencja, do 35 znaków",
   },
   composed: {
     shareTitle: "Żądanie płatności",
@@ -124,6 +173,8 @@ export const pl: Dictionary = {
     whatTheCodeSays: "Co mówi kod",
     figures: ({ version, bytes, maxBytes, qrVersion, maxQrVersion, correction }) =>
       `EPC069-12 wersja ${version}, UTF-8, ${bytes} z ${maxBytes} bajtów. Wersja QR ${qrVersion} z ${maxQrVersion}, korekcja błędów ${correction}.`,
+    poiFigures: ({ characters, qrVersion, correction }) =>
+      `EN 18184 (EPC024-22) wersja 1, ${characters} ${pluralPl(characters, "znak", "znaki", "znaków")}. Wersja QR ${qrVersion}, korekcja błędów ${correction}.`,
     shareFailed: "Nie udało się udostępnić żądania.",
     renderFailed: "Nie udało się narysować kodu.",
   },
@@ -141,7 +192,7 @@ export const pl: Dictionary = {
       "Aparat jest wyłączony dla tej aplikacji w ustawieniach systemu. Wklejanie poniżej nadal działa.",
     pointCamera: "Skieruj aparat na kod QR płatności.",
     pasteLabel: "Lub wklej żądanie",
-    pastePlaceholder: "Link euvena:// lub payto://, albo tekst kodu",
+    pastePlaceholder: "Link euvena://, payto:// lub https://, albo tekst kodu",
     readPasted: "Odczytaj wklejone",
     reviewHint:
       "Wartości odczytane z samego kodu. Sprawdź nazwę i IBAN u osoby, która prosi o płatność; kod nie zrobi tego za Ciebie.",
@@ -159,6 +210,10 @@ export const pl: Dictionary = {
     rejectionHint:
       "Żądanie, które nie przejdzie kontroli, nie jest w ogóle pokazywane: częściowy odczyt mógłby skierować pieniądze na niewłaściwy rachunek.",
     tryAgain: "Spróbuj ponownie",
+    poiRead:
+      "Ten kod EN 18184 jest adresem internetowym. Aplikacja odczytała go na tym urządzeniu i niczego nie otworzyła.",
+    instantAsked:
+      "Odbiorca prosi o przelew natychmiastowy. Wybierz go w swojej aplikacji bankowej, jeśli jest dostępny.",
   },
   history: {
     title: "Historia",
@@ -253,9 +308,31 @@ export const pl: Dictionary = {
     requestsCount: (n) => `${n} ${pluralPl(n, "żądanie", "żądania", "żądań")}`,
     and: (a, b) => `${a} i ${b}`,
     shareDialog: "Zapisz lub wyślij dane aplikacji",
+    poi: "Kody EN 18184",
+    poiOff: "Wyłączone",
+    poiHint: "Twórz kody dla punktu interakcji z danymi, które przydzieliły Ci ramy MSCT.",
     about: "O aplikacji",
     aboutText:
-      "Euvena to referencyjna aplikacja do kodów płatności EPC069-12. Nie ma kont ani serwera i nigdy nie przenosi pieniędzy: żądanie jest przekazywane do Twojej aplikacji bankowej.",
+      "Euvena to referencyjna aplikacja do kodów płatności EPC069-12 i EN 18184. Nie ma kont ani serwera i nigdy nie przenosi pieniędzy: żądanie jest przekazywane do Twojej aplikacji bankowej.",
+  },
+  poi: {
+    title: "Kody EN 18184",
+    subtitle:
+      "Przechowywane tylko na tym urządzeniu. Żądania można wtedy tworzyć także jako kody EN 18184, obok kodów QR EPC.",
+    domain: "Domena ram",
+    domainPlaceholder: "qr.example.org",
+    domainShape: "Wpisz samą nazwę hosta, bez https:// i ścieżki",
+    providerId: "ID dostawcy",
+    providerPlaceholder: "3 litery lub cyfry",
+    providerShape: "Dokładnie 3 litery lub cyfry",
+    issuer: "ID wydawcy",
+    issuerPlaceholder: "3 litery lub cyfry",
+    issuerShape: "Dokładnie 3 litery lub cyfry",
+    explainer:
+      "Kod EN 18184 to adres internetowy w domenie ram interoperacyjności MSCT, kierowany do Twojego dostawcy usług płatniczych według jego ID. Użyj wartości, które podały Ci ramy lub dostawca: kody z innymi wartościami wskazują adres, który nie należy do Ciebie.",
+    saveFailed: "Nie udało się zapisać ustawień na tym urządzeniu.",
+    turnOff: "Wyłącz kody EN 18184",
+    turningOff: "Wyłączanie",
   },
 };
 

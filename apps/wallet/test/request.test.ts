@@ -36,13 +36,14 @@ describe("normalizeAmountInput", () => {
 describe("buildPaymentRequest", () => {
   it("builds a payload whose decoded values match the form", () => {
     const result = buildPaymentRequest(payee, {
+      ...EMPTY_FORM,
       amount: "13,05",
       remittanceKind: "text",
       remittance: "Spende fuer Wikipedia",
     }, en);
 
     expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    if (!result.ok || result.format !== "epc069") throw new Error("not an EPC069-12 code");
 
     expect(result.data.iban).toBe("DE33100205000001194700");
     expect(result.data.amount).toBe("13.05");
@@ -57,6 +58,7 @@ describe("buildPaymentRequest", () => {
 
   it("fills the structured reference element instead of the text element", () => {
     const result = buildPaymentRequest(payee, {
+      ...EMPTY_FORM,
       amount: "10",
       remittanceKind: "reference",
       remittance: "RF18539007547034",
@@ -81,7 +83,7 @@ describe("buildPaymentRequest", () => {
     const result = buildPaymentRequest({ ...payee, bic: "bfswde33mue" }, EMPTY_FORM, en);
 
     expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    if (!result.ok || result.format !== "epc069") throw new Error("not an EPC069-12 code");
     expect(result.data.bic).toBe("BFSWDE33MUE");
   });
 
@@ -224,7 +226,7 @@ describe("form issues are worded by the wallet", () => {
   it("names what a text or reference must look like, in the language, never echoing the value", () => {
     const text = buildPaymentRequest(
       payee,
-      { amount: "", remittanceKind: "text", remittance: "Miete\nMai" },
+      { ...EMPTY_FORM, amount: "", remittanceKind: "text", remittance: "Miete\nMai" },
       de,
     );
     expect(text).toEqual({
@@ -233,7 +235,7 @@ describe("form issues are worded by the wallet", () => {
     });
     const reference = buildPaymentRequest(
       payee,
-      { amount: "", remittanceKind: "reference", remittance: "RF12NOPE" },
+      { ...EMPTY_FORM, amount: "", remittanceKind: "reference", remittance: "RF12NOPE" },
       de,
     );
     expect(reference.ok).toBe(false);
@@ -248,7 +250,7 @@ describe("form issues are worded by the wallet", () => {
     // Each field fits on its own; in UTF-8 the two together pass 331 bytes.
     const long = buildPaymentRequest(
       { ...payee, name: "ü".repeat(70) },
-      { amount: "", remittanceKind: "text", remittance: "ü".repeat(140) },
+      { ...EMPTY_FORM, amount: "", remittanceKind: "text", remittance: "ü".repeat(140) },
       de,
     );
     expect(long.ok).toBe(false);
@@ -265,11 +267,11 @@ describe("summarizeRequest", () => {
         iban: "DE33 1002 0500 0001 1947 00",
         bic: "BFSWDE33BER",
       },
-      { amount: "13,05", remittanceKind: "text", remittance: "Spende fuer Wikipedia" }, en);
+      { ...EMPTY_FORM, amount: "13,05", remittanceKind: "text", remittance: "Spende fuer Wikipedia" }, en);
     expect(request.ok).toBe(true);
     if (!request.ok) return;
 
-    expect(summarizeRequest(request.data, en, "en")).toEqual([
+    expect(summarizeRequest(request, en, "en")).toEqual([
       { label: "Payee", value: "Wikimedia Foerdergesellschaft" },
       { label: "IBAN", value: "DE33 1002 0500 0001 1947 00" },
       { label: "BIC", value: "BFSWDE33BER" },

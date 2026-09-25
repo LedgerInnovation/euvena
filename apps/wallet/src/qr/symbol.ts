@@ -1,7 +1,7 @@
 /**
- * Builds the QR symbol for an EPC069-12 payload.
+ * Builds the QR symbol for a payment code.
  *
- * The guidelines fix two rendering parameters (EPC069-12 v3.1 section 3):
+ * For EPC069-12, the guidelines fix two rendering parameters (v3.1 section 3):
  * error correction level M and a symbol no larger than version 13. A
  * conformant payload is at most 331 bytes, which is exactly the byte-mode
  * capacity of version 13 at level M, so the cap is reachable but never
@@ -21,28 +21,33 @@ export const EPC069_ERROR_CORRECTION = "M";
 /** Largest symbol version the guidelines allow. */
 export const EPC069_MAX_VERSION = 13;
 
+/**
+ * Largest symbol version of ISO/IEC 18004. EPC024-22 names the standard and
+ * fixes no parameters of its own, so an EN 18184 code is bounded only by it
+ * and is drawn at the same level M.
+ */
+export const QR_MAX_VERSION = 40;
+
 export interface QrSymbol {
   /** Module count per side, excluding the quiet zone. */
   size: number;
-  /** QR symbol version, 1..13 for conformant payloads. */
+  /** QR symbol version, 1..13 for conformant EPC069-12 payloads. */
   version: number;
   /** Row-major dark-module flags, `size` rows of `size` entries. */
   modules: boolean[][];
 }
 
 /**
- * @throws Error when the payload does not fit a version 13 symbol at level M.
+ * @throws Error when the payload does not fit a symbol of `maxVersion` at level M.
  */
-export function toQrSymbol(payload: string): QrSymbol {
+export function toQrSymbol(payload: string, maxVersion: number = EPC069_MAX_VERSION): QrSymbol {
   const bytes = new TextEncoder().encode(payload);
   const symbol = create([{ mode: "byte", data: bytes }], {
     errorCorrectionLevel: EPC069_ERROR_CORRECTION,
   });
 
-  if (symbol.version > EPC069_MAX_VERSION) {
-    throw new Error(
-      `payload needs QR version ${symbol.version}, the guidelines allow up to ${EPC069_MAX_VERSION}`,
-    );
+  if (symbol.version > maxVersion) {
+    throw new Error(`payload needs QR version ${symbol.version}, up to ${maxVersion} is allowed`);
   }
 
   const size = symbol.modules.size;

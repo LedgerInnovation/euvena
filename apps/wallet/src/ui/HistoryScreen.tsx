@@ -87,7 +87,7 @@ export function HistoryScreen({
           {markFailedId === open.id ? <Problem>{strings.history.markFailed}</Problem> : null}
         </Card>
         {openResult.ok ? (
-          <ComposedRequest payload={openResult.payload} data={openResult.data} />
+          <ComposedRequest code={openResult} />
         ) : (
           <Card tone="danger">
             <Problem>{strings.history.unreadable}</Problem>
@@ -151,7 +151,7 @@ function EntryCard({
     <Card>
       <EntryStatus entry={entry} onMark={onMark} />
       {result?.ok === true ? (
-        <Rows rows={summarizeRequest(result.data, strings, tag)} struck={entry.done} />
+        <Rows rows={summarizeRequest(result, strings, tag)} struck={entry.done} />
       ) : (
         <Problem>{strings.history.unreadable}</Problem>
       )}

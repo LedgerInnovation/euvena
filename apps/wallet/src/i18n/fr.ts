@@ -15,6 +15,12 @@ export const fr: Dictionary = {
     text: "le libellé",
     information: "la ligne d'information",
     payload: "la structure d'ensemble",
+    tradeName: "le nom commercial",
+    referenceParty: "la partie pour le compte de laquelle il encaisse",
+    instrument: "le type de virement",
+    currency: "la devise",
+    category: "la catégorie de commerçant",
+    routing: "les données de routage",
     other: "un élément",
   },
   rows: {
@@ -27,6 +33,24 @@ export const fr: Dictionary = {
     text: "Libellé",
     information: "Information",
     payerDecides: "saisi par le payeur",
+    tradeName: "Nom commercial",
+    onBehalfOf: "Pour le compte de",
+    onBehalfOfTrade: "Pour le compte de, nom commercial",
+    transfer: "Virement",
+    instant: "Instantané",
+    standard: "Standard",
+    category: "Catégorie de commerçant",
+    context: "Contexte de paiement",
+    contexts: {
+      m: "En magasin",
+      e: "Achat en ligne",
+      i: "Facture",
+      p: "Entre particuliers",
+      w: "Page web",
+    },
+    framework: "Cadre",
+    provider: "Prestataire",
+    issuer: "Émetteur",
   },
   common: {
     cancel: "Annuler",
@@ -55,6 +79,11 @@ export const fr: Dictionary = {
     requestTooLong: "La demande ne tient pas dans un code. Raccourcissez le texte.",
     unencodable: "La demande n'a pas pu être encodée.",
     inPayeeSettings: "(réglages du bénéficiaire)",
+    amountRequired: "Un code EN 18184 porte un montant fixe. Saisissez-en un.",
+    poiTextShape: "Jusqu'à 35 caractères visibles sur une ligne dans un code EN 18184",
+    poiReferenceShape:
+      "Jusqu'à 35 caractères ; une référence qui commence par RF doit passer ses chiffres de contrôle",
+    poiProfile: "Vérifiez les réglages EN 18184.",
   },
   rejections: {
     empty: "Il n'y a rien à lire.",
@@ -83,6 +112,13 @@ export const fr: Dictionary = {
     linkNoRequest: "Le lien ne porte aucune demande de paiement.",
     linkDamaged: "Le lien est endommagé et ne peut pas être lu.",
     linkInvalid: "Le lien ne porte pas de demande de paiement valide.",
+    poiNot: "L'application ne peut pas lire cette adresse comme un code de paiement EN 18184. Rien n'a été ouvert.",
+    poiInvalid: (elements) =>
+      `Le code EN 18184 n'est pas une demande de paiement valide. Éléments non conformes : ${joinList(elements)}.`,
+    poiNoRequest: "Le code EN 18184 ne contient pas de demande de paiement valide.",
+    poiNeedsProvider:
+      "Ce code EN 18184 désigne le bénéficiaire par l'intermédiaire d'un prestataire de paiement, que seule l'application de ce prestataire peut interroger. Euvena lit les codes qui portent les coordonnées complètes du bénéficiaire.",
+    poiNotEuro: "Le code EN 18184 demande une autre devise que l'euro.",
   },
   request: {
     title: "Demander un paiement",
@@ -110,6 +146,19 @@ export const fr: Dictionary = {
     referencePlaceholder: "RF18539007547034",
     textHint: "Jusqu'à 140 caractères de texte",
     referenceHint: "Une référence créancier structurée, jusqu'à 35 caractères",
+    format: "Format du code",
+    formatEpc: "QR EPC",
+    formatPoi: "EN 18184",
+    formatEpcHint: "Lu par la plupart des applications bancaires européennes.",
+    formatPoiHint:
+      "Pour les applications d'un cadre EN 18184. Le code est une adresse web sur le domaine du cadre et porte un montant fixe.",
+    transfer: "Virement",
+    instant: "Instantané",
+    standard: "Standard",
+    enterAmount: "Saisissez un montant",
+    amountRequiredA11y: "Montant en euros, obligatoire pour un code EN 18184",
+    poiTextHint: "Jusqu'à 35 caractères de texte",
+    poiReferenceHint: "Une référence structurée, jusqu'à 35 caractères",
   },
   composed: {
     shareTitle: "Demande de paiement",
@@ -124,6 +173,8 @@ export const fr: Dictionary = {
     whatTheCodeSays: "Ce que dit le code",
     figures: ({ version, bytes, maxBytes, qrVersion, maxQrVersion, correction }) =>
       `EPC069-12 version ${version}, UTF-8, ${bytes} octets sur ${maxBytes}. QR version ${qrVersion} sur ${maxQrVersion}, correction d'erreur ${correction}.`,
+    poiFigures: ({ characters, qrVersion, correction }) =>
+      `EN 18184 (EPC024-22) version 1, ${characters} caractères. QR version ${qrVersion}, correction d'erreur ${correction}.`,
     shareFailed: "La demande n'a pas pu être partagée.",
     renderFailed: "Le code n'a pas pu être dessiné.",
   },
@@ -141,7 +192,7 @@ export const fr: Dictionary = {
       "La caméra est désactivée pour cette application dans les réglages du système. Le collage ci-dessous fonctionne toujours.",
     pointCamera: "Pointez la caméra vers un code QR de paiement.",
     pasteLabel: "Ou collez une demande",
-    pastePlaceholder: "Un lien euvena:// ou payto://, ou le texte d'un code",
+    pastePlaceholder: "Un lien euvena://, payto:// ou https://, ou le texte d'un code",
     readPasted: "Lire ce qui a été collé",
     reviewHint:
       "Valeurs lues dans le code lui-même. Vérifiez le nom et l'IBAN auprès de la personne qui demande à être payée ; le code ne peut pas le faire pour vous.",
@@ -159,6 +210,10 @@ export const fr: Dictionary = {
     rejectionHint:
       "Une demande qui échoue à un contrôle n'est pas affichée du tout : une lecture partielle pourrait diriger l'argent vers le mauvais compte.",
     tryAgain: "Réessayer",
+    poiRead:
+      "Ce code EN 18184 est une adresse web. L'application l'a lu sur cet appareil et n'a rien ouvert.",
+    instantAsked:
+      "Le bénéficiaire demande un virement instantané. Choisissez-le dans votre application bancaire s'il est proposé.",
   },
   history: {
     title: "Historique",
@@ -253,9 +308,32 @@ export const fr: Dictionary = {
     requestsCount: (n) => `${n} demande${n === 1 ? "" : "s"}`,
     and: (a, b) => `${a} et ${b}`,
     shareDialog: "Enregistrer ou envoyer les données de l'application",
+    poi: "Codes EN 18184",
+    poiOff: "Désactivés",
+    poiHint:
+      "Créez des codes pour le point d'interaction avec les données qu'un cadre MSCT vous a attribuées.",
     about: "À propos",
     aboutText:
-      "Euvena est une application de référence pour les codes de paiement EPC069-12. Elle n'a ni comptes ni serveur et ne déplace jamais d'argent : une demande est remise à votre application bancaire.",
+      "Euvena est une application de référence pour les codes de paiement EPC069-12 et EN 18184. Elle n'a ni comptes ni serveur et ne déplace jamais d'argent : une demande est remise à votre application bancaire.",
+  },
+  poi: {
+    title: "Codes EN 18184",
+    subtitle:
+      "Conservé sur cet appareil uniquement. Les demandes peuvent alors être créées en codes EN 18184 en plus des codes QR EPC.",
+    domain: "Domaine du cadre",
+    domainPlaceholder: "qr.example.org",
+    domainShape: "Saisissez le nom d'hôte seul, sans https:// ni chemin",
+    providerId: "ID du prestataire",
+    providerPlaceholder: "3 lettres ou chiffres",
+    providerShape: "Exactement 3 lettres ou chiffres",
+    issuer: "ID de l'émetteur",
+    issuerPlaceholder: "3 lettres ou chiffres",
+    issuerShape: "Exactement 3 lettres ou chiffres",
+    explainer:
+      "Un code EN 18184 est une adresse web sur le domaine d'un cadre d'interopérabilité MSCT, acheminée vers votre prestataire de paiement par son ID. Utilisez les valeurs que votre cadre ou votre prestataire vous a données : des codes créés avec d'autres valeurs pointent vers une adresse qui ne vous appartient pas.",
+    saveFailed: "Les réglages n'ont pas pu être enregistrés sur cet appareil.",
+    turnOff: "Désactiver les codes EN 18184",
+    turningOff: "Désactivation",
   },
 };
 

@@ -4,12 +4,10 @@ import { describeRejection, en, type Rejection } from "../src/i18n";
 import { EPC069_MAX_BYTES, byteLength } from "@euvena/qr";
 
 import { parseRequestLink, buildRequestLink } from "../src/epc/link";
-import {
-  buildPaymentRequest,
+import { EMPTY_FORM, buildPaymentRequest,
   summarizeRequest,
   type Payee,
-  type RequestForm,
-} from "../src/epc/request";
+  type RequestForm, } from "../src/epc/request";
 import {
   NOT_A_PAYMENT_INPUT,
   openedRequestStep,
@@ -43,6 +41,7 @@ const VALID = payloadOf(["BCD", "002", "1", "SCT", "", "Name", "DE33100205000001
 describe("readPaymentRequest reads what the request side produces", () => {
   it("round-trips a payload the request screen builds", () => {
     const request = requestFor({
+      ...EMPTY_FORM,
       amount: "13,05",
       remittanceKind: "text",
       remittance: "Spende fuer Wikipedia",
@@ -58,7 +57,7 @@ describe("readPaymentRequest reads what the request side produces", () => {
   });
 
   it("reads the link form of the same request", () => {
-    const request = requestFor({ amount: "10", remittanceKind: "text", remittance: "" });
+    const request = requestFor({ ...EMPTY_FORM, amount: "10", remittanceKind: "text", remittance: "" });
 
     const read = readPaymentRequest(buildRequestLink(request.payload));
 
@@ -99,13 +98,14 @@ describe("readPaymentRequest reads what the request side produces", () => {
 
     expect(read.ok).toBe(true);
     if (!read.ok) return;
-    const rows = summarizeRequest(read.data, en, "en");
+    const rows = summarizeRequest(read, en, "en");
     expect(rows).toContainEqual({ label: "Purpose", value: "GDDS" });
     expect(rows).toContainEqual({ label: "Information", value: "Collect at desk 3" });
   });
 
   it("reads a payload whose remittance text carries a web address as a payload", () => {
     const request = requestFor({
+      ...EMPTY_FORM,
       amount: "5",
       remittanceKind: "text",
       remittance: "Details at https://example.org/invoice",
@@ -121,9 +121,16 @@ describe("readPaymentRequest reads what the request side produces", () => {
 
 describe("readPaymentRequest classifies input", () => {
   it("hands link-shaped input to the link parser, whatever its scheme", () => {
-    const link = "https://example.org/pay";
+    const link = "ftp://example.org/pay";
 
     expect(readPaymentRequest(link)).toEqual(parseRequestLink(link));
+  });
+
+  it("reads an https address as an EN 18184 code and refuses one that is not", () => {
+    expect(readPaymentRequest("https://example.org/pay")).toEqual({
+      ok: false,
+      reason: { code: "poiNot" },
+    });
   });
 
   it("rejects text that is neither a payload nor a link", () => {
@@ -138,7 +145,7 @@ describe("readPaymentRequest classifies input", () => {
 });
 
 describe("readOpenedLink reads the link the app was opened with", () => {
-  const request = requestFor({ amount: "10", remittanceKind: "text", remittance: "Invoice 7" });
+  const request = requestFor({ ...EMPTY_FORM, amount: "10", remittanceKind: "text", remittance: "Invoice 7" });
   const link = buildRequestLink(request.payload);
 
   it("reviews a shared request link", () => {
@@ -202,8 +209,8 @@ describe("readOpenedLink reads the link the app was opened with", () => {
 });
 
 describe("openedRequestStep never swaps what the payer is looking at", () => {
-  const first = requestFor({ amount: "10", remittanceKind: "text", remittance: "Invoice 7" });
-  const second = requestFor({ amount: "10", remittanceKind: "text", remittance: "Invoice 8" });
+  const first = requestFor({ ...EMPTY_FORM, amount: "10", remittanceKind: "text", remittance: "Invoice 7" });
+  const second = requestFor({ ...EMPTY_FORM, amount: "10", remittanceKind: "text", remittance: "Invoice 8" });
   const read = (payload: string) => readPaymentRequest(payload);
   const damaged = { ok: false, reason: { code: "linkDamaged" } } as const;
   const invalid = { ok: false, reason: { code: "linkInvalid" } } as const;

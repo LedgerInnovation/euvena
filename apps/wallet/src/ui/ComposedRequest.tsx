@@ -1,13 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
 import { Share, StyleSheet, View, useWindowDimensions } from "react-native";
-import { EPC069_MAX_BYTES, byteLength, type EpcQrData } from "@euvena/qr";
+import { EPC069_MAX_BYTES, byteLength } from "@euvena/qr";
 
 import { buildShareMessage } from "../epc/link";
-import { summarizeRequest } from "../epc/request";
+import { summarizeRequest, type PaymentCode } from "../epc/request";
 import { useLocale } from "../i18n/context";
 import {
   EPC069_ERROR_CORRECTION,
   EPC069_MAX_VERSION,
+  QR_MAX_VERSION,
   toQrSymbol,
   type QrSymbol,
 } from "../qr/symbol";
@@ -16,17 +17,17 @@ import { QrCode } from "./QrCode";
 
 type SymbolResult = { symbol: QrSymbol } | { error: true };
 
-function buildSymbol(payload: string): SymbolResult {
+function buildSymbol(code: PaymentCode): SymbolResult {
   try {
-    return { symbol: toQrSymbol(payload) };
+    const maxVersion = code.format === "epc069" ? EPC069_MAX_VERSION : QR_MAX_VERSION;
+    return { symbol: toQrSymbol(code.payload, maxVersion) };
   } catch {
     return { error: true };
   }
 }
 
 interface ComposedRequestProps {
-  payload: string;
-  data: EpcQrData;
+  code: PaymentCode;
   /**
    * Keeps the request in the history. Called when it is shared, or from the
    * Keep action, which is only offered when this is given. Rejects when the
@@ -48,10 +49,10 @@ interface ComposedRequestProps {
  * composing this way, and the history shows a kept one the same way, so what
  * is re-shared later is exactly what was shown at the time.
  */
-export function ComposedRequest({ payload, data, onKeep, compact = false }: ComposedRequestProps) {
+export function ComposedRequest({ code, onKeep, compact = false }: ComposedRequestProps) {
   const { width } = useWindowDimensions();
   const { strings } = useLocale();
-  const rendered = useMemo(() => buildSymbol(payload), [payload]);
+  const rendered = useMemo(() => buildSymbol(code), [code]);
   const codeSize = Math.min(width - 104, 280);
 
   if ("error" in rendered) {
@@ -68,8 +69,8 @@ export function ComposedRequest({ payload, data, onKeep, compact = false }: Comp
       <Card>
         {/* Keyed on the payload so an error from one request is not left
             standing over the next one. */}
-        <ShareRequest key={payload} payload={payload} data={data} onKeep={onKeep} />
-        <DecodedSummary payload={payload} data={data} symbol={rendered.symbol} compact={compact} />
+        <ShareRequest key={code.payload} code={code} onKeep={onKeep} />
+        <DecodedSummary code={code} symbol={rendered.symbol} compact={compact} />
       </Card>
     </>
   );
@@ -99,14 +100,13 @@ function QrCodeCard({ symbol, size }: { symbol: QrSymbol; size: number }) {
  * destination is the user's choice.
  */
 function ShareRequest({
-  payload,
-  data,
+  code,
   onKeep,
 }: {
-  payload: string;
-  data: EpcQrData;
+  code: PaymentCode;
   onKeep: ((payload: string) => Promise<void>) | undefined;
 }) {
+  const { payload } = code;
   const { strings, tag } = useLocale();
   const [sharing, setSharing] = useState(false);
   const [keeping, setKeeping] = useState(false);
@@ -138,7 +138,7 @@ function ShareRequest({
       // subject option, so it is passed as both.
       const title = strings.composed.shareTitle;
       const result = await Share.share(
-        { title, message: buildShareMessage(data, payload, strings, tag) },
+        { title, message: buildShareMessage(code, strings, tag) },
         { subject: title },
       );
       // iOS reports a sheet closed without a destination; Android settles as
@@ -154,7 +154,7 @@ function ShareRequest({
     } finally {
       setSharing(false);
     }
-  }, [payload, data, keep, strings, tag]);
+  }, [code, keep, strings, tag]);
 
   return (
     <View style={styles.share}>
@@ -198,13 +198,11 @@ function ShareRequest({
  * recommend printing beside the code.
  */
 function DecodedSummary({
-  payload,
-  data,
+  code,
   symbol,
   compact,
 }: {
-  payload: string;
-  data: EpcQrData;
+  code: PaymentCode;
   symbol: QrSymbol;
   compact: boolean;
 }) {
@@ -222,16 +220,22 @@ function DecodedSummary({
   return (
     <View style={styles.summary}>
       <SectionLabel>{strings.composed.whatTheCodeSays}</SectionLabel>
-      <Rows rows={summarizeRequest(data, strings, tag)} />
+      <Rows rows={summarizeRequest(code, strings, tag)} />
       <Hint>
-        {strings.composed.figures({
-          version: data.version,
-          bytes: byteLength(payload, data.charset),
-          maxBytes: EPC069_MAX_BYTES,
-          qrVersion: symbol.version,
-          maxQrVersion: EPC069_MAX_VERSION,
-          correction: EPC069_ERROR_CORRECTION,
-        })}
+        {code.format === "epc069"
+          ? strings.composed.figures({
+              version: code.data.version,
+              bytes: byteLength(code.payload, code.data.charset),
+              maxBytes: EPC069_MAX_BYTES,
+              qrVersion: symbol.version,
+              maxQrVersion: EPC069_MAX_VERSION,
+              correction: EPC069_ERROR_CORRECTION,
+            })
+          : strings.composed.poiFigures({
+              characters: code.payload.length,
+              qrVersion: symbol.version,
+              correction: EPC069_ERROR_CORRECTION,
+            })}
       </Hint>
     </View>
   );

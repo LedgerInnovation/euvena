@@ -11,7 +11,7 @@ import {
   buildShareMessage,
   parseRequestLink,
 } from "../src/epc/link";
-import { buildPaymentRequest, type Payee, type RequestForm } from "../src/epc/request";
+import { EMPTY_FORM, buildPaymentRequest, type Payee, type RequestForm } from "../src/epc/request";
 
 const text = (rejection: Rejection) => describeRejection(rejection, en);
 
@@ -50,6 +50,7 @@ describe("buildRequestLink", () => {
 describe("a shared request round-trips", () => {
   it("decodes back to the values that were entered", () => {
     const form: RequestForm = {
+      ...EMPTY_FORM,
       amount: "13,05",
       remittanceKind: "text",
       remittance: "Spende fuer Wikipedia",
@@ -70,6 +71,7 @@ describe("a shared request round-trips", () => {
 
   it("keeps a structured reference in its own element", () => {
     const request = requestFor({
+      ...EMPTY_FORM,
       amount: "10",
       remittanceKind: "reference",
       remittance: "RF18539007547034",
@@ -84,7 +86,7 @@ describe("a shared request round-trips", () => {
   });
 
   it("keeps an amount the payer is meant to enter out of the link", () => {
-    const request = requestFor({ amount: "", remittanceKind: "text", remittance: "Open amount" });
+    const request = requestFor({ ...EMPTY_FORM, amount: "", remittanceKind: "text", remittance: "Open amount" });
 
     const parsed = parseRequestLink(buildRequestLink(request.payload));
 
@@ -97,7 +99,7 @@ describe("a shared request round-trips", () => {
     // "&" would end the parameter, "+" would become a space under form
     // encoding, "%" and "#" would be read as an escape and a fragment.
     const remittance = "Rechnung 7 & 8 +1 100% #neu";
-    const request = requestFor({ amount: "1,00", remittanceKind: "text", remittance });
+    const request = requestFor({ ...EMPTY_FORM, amount: "1,00", remittanceKind: "text", remittance });
 
     const parsed = parseRequestLink(buildRequestLink(request.payload));
 
@@ -107,7 +109,7 @@ describe("a shared request round-trips", () => {
   });
 
   it("reads as damaged rather than altered when a message app clips the last character", () => {
-    const request = requestFor({ amount: "1,00", remittanceKind: "text", remittance: "Danke :)" });
+    const request = requestFor({ ...EMPTY_FORM, amount: "1,00", remittanceKind: "text", remittance: "Danke :)" });
     const link = buildRequestLink(request.payload);
 
     const parsed = parseRequestLink(link);
@@ -126,7 +128,7 @@ describe("a shared request round-trips", () => {
   it("survives a name outside ASCII", () => {
     const request = buildPaymentRequest(
       { name: "Zürcher Kantonalbank Ärzte", iban: "DE33100205000001194700", bic: "" },
-      { amount: "2,50", remittanceKind: "text", remittance: "Kaffee" }, en);
+      { ...EMPTY_FORM, amount: "2,50", remittanceKind: "text", remittance: "Kaffee" }, en);
     expect(request.ok).toBe(true);
     if (!request.ok) return;
 
@@ -257,12 +259,13 @@ describe("parseRequestLink", () => {
 describe("buildShareMessage", () => {
   it("puts the request above the link that carries it", () => {
     const request = requestFor({
+      ...EMPTY_FORM,
       amount: "13,05",
       remittanceKind: "text",
       remittance: "Spende fuer Wikipedia",
     });
 
-    const message = buildShareMessage(request.data, request.payload, en, "en");
+    const message = buildShareMessage(request, en, "en");
 
     expect(message).toContain("Payee: Wikimedia Foerdergesellschaft");
     expect(message).toContain("IBAN: DE33 1002 0500 0001 1947 00");
@@ -272,9 +275,9 @@ describe("buildShareMessage", () => {
   });
 
   it("says who enters the amount when the request leaves it open", () => {
-    const request = requestFor({ amount: "", remittanceKind: "text", remittance: "" });
+    const request = requestFor({ ...EMPTY_FORM, amount: "", remittanceKind: "text", remittance: "" });
 
-    expect(buildShareMessage(request.data, request.payload, en, "en")).toContain(
+    expect(buildShareMessage(request, en, "en")).toContain(
       "Amount: entered by the payer",
     );
   });

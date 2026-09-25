@@ -125,7 +125,7 @@ export function formatDateTime(iso: string, tag: string): string {
 /** Why an input was not read as a payment request. */
 export interface Rejection {
   code: import("./dictionary").RejectionCode;
-  /** The elements that failed, for codeInvalid and paytoInvalid. */
+  /** The elements that failed, for codeInvalid, paytoInvalid and poiInvalid. */
   elements?: ElementKey[];
 }
 
@@ -141,6 +141,10 @@ export function describeRejection(rejection: Rejection, strings: Dictionary): st
       return elements.length === 0
         ? strings.rejections.paytoNoRequest
         : strings.rejections.paytoInvalid(elements);
+    case "poiInvalid":
+      return elements.length === 0
+        ? strings.rejections.poiNoRequest
+        : strings.rejections.poiInvalid(elements);
     default:
       return strings.rejections[rejection.code];
   }

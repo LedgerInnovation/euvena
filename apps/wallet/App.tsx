@@ -6,6 +6,7 @@ import { useLocales } from "expo-localization";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
+import { type PoiProfile } from "./src/epc/poi";
 import { type Payee } from "./src/epc/request";
 import { readOpenedLink, type OpenedRequest } from "./src/epc/scan";
 import { resolveLocale, type Language } from "./src/i18n";
@@ -42,6 +43,7 @@ import { HistoryScreen } from "./src/ui/HistoryScreen";
 import { type Tab, TabBar } from "./src/ui/kit";
 import { PayeeScreen } from "./src/ui/PayeeScreen";
 import { PayeesScreen } from "./src/ui/PayeesScreen";
+import { PoiScreen } from "./src/ui/PoiScreen";
 import { RequestScreen } from "./src/ui/RequestScreen";
 import { ScanScreen } from "./src/ui/ScanScreen";
 import { SettingsScreen } from "./src/ui/SettingsScreen";
@@ -62,6 +64,7 @@ type Origin = "tab" | "settings";
 type Screen =
   | { name: "tab" }
   | { name: "settings" }
+  | { name: "poi" }
   | { name: "payees"; origin: Origin }
   | { name: "payee"; editing: number | null; origin: Origin; fromList: boolean };
 
@@ -152,6 +155,10 @@ export default function App() {
     (chosen: Language | null) => commit((current) => ({ ...current, language: chosen })),
     [commit],
   );
+  const onPoiProfile = useCallback(
+    (profile: PoiProfile | null) => commit((current) => ({ ...current, poi: profile })),
+    [commit],
+  );
 
   return (
     <AppearanceContext.Provider value={appearance}>
@@ -162,6 +169,7 @@ export default function App() {
           deviceLanguage={deviceLanguage}
           onAppearance={onAppearance}
           onLanguage={onLanguage}
+          onPoiProfile={onPoiProfile}
         />
       </LocaleProvider>
     </AppearanceContext.Provider>
@@ -174,6 +182,7 @@ interface WalletProps {
   deviceLanguage: Language;
   onAppearance: (appearance: Preferences["appearance"]) => Promise<void>;
   onLanguage: (language: Language | null) => Promise<void>;
+  onPoiProfile: (profile: PoiProfile | null) => Promise<void>;
 }
 
 function Wallet({
@@ -182,6 +191,7 @@ function Wallet({
   deviceLanguage,
   onAppearance,
   onLanguage,
+  onPoiProfile,
 }: WalletProps) {
   const strings = useStrings();
   const scheme = useScheme();
@@ -283,7 +293,8 @@ function Wallet({
 
   // The system back gesture or button on Android leaves a screen opened over
   // the tabs the way its own back link does. On the tabs it keeps its meaning,
-  // and the payee form handles it itself, since Cancel waits while it writes.
+  // and the payee and EN 18184 forms handle it themselves, since Cancel waits
+  // while they write.
   useEffect(() => {
     if (screen.name !== "settings" && screen.name !== "payees") return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -323,6 +334,14 @@ function Wallet({
       );
     },
     [commitBook],
+  );
+  // Saved or turned off, the form returns to the settings it was opened from.
+  const onSavePoi = useCallback(
+    async (profile: PoiProfile | null) => {
+      await onPoiProfile(profile);
+      setScreen((current) => (current.name === "poi" ? { name: "settings" } : current));
+    },
+    [onPoiProfile],
   );
   const onUsePayee = useCallback(
     (index: number) => commitBook((current) => setActivePayee(current, index)),
@@ -453,6 +472,14 @@ function Wallet({
                 notice={book.loadFailed ? strings.payee.readFailed : null}
               />
             </SafeAreaView>
+          ) : screen.name === "poi" ? (
+            <SafeAreaView style={styles.root} edges={["bottom"]}>
+              <PoiScreen
+                profile={preferences.poi}
+                onSave={onSavePoi}
+                onCancel={() => setScreen({ name: "settings" })}
+              />
+            </SafeAreaView>
           ) : screen.name === "payees" ? (
             <SafeAreaView style={styles.root} edges={["bottom"]}>
               <PayeesScreen
@@ -474,6 +501,7 @@ function Wallet({
                 payeeCount={payees.length}
                 activeName={activeName}
                 onPayees={() => choosePayee("settings")}
+                onPoi={() => setScreen({ name: "poi" })}
                 onExport={onExport}
                 exportBlocked={exportBlocked}
                 preferences={preferences}
@@ -504,6 +532,7 @@ function Wallet({
                   }
                   onSettings={() => setScreen({ name: "settings" })}
                   onKeep={onKeep}
+                  poiProfile={preferences.poi}
                 />
               </View>
               {tab === "pay" ? (
