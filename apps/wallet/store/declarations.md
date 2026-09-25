@@ -66,11 +66,11 @@ an app bundle for Play App Signing.
 
 ## Both stores
 
-**Privacy policy.** The text is in `privacy-policy.md`. Both stores need it at a public address,
-filled in with the publisher's name, address and contact.
+**Privacy policy.** https://ledgerinnovation.com/euvena/privacy/, the text of
+`privacy-policy.md`.
 
-**EU trader status (Digital Services Act).** A choice for the publisher: an app published by a
-company is normally published as a trader, and both stores then show the trader's address, phone
-number and email on the listing.
+**EU trader status (Digital Services Act).** Set on the publisher's developer accounts, not per
+app: Euvena is published from the Ledger Innovation MB accounts that carry its other apps.
+Confirm in each console that the trader details are complete before the first release.
 
 **Support URL.** The repository's issue tracker.

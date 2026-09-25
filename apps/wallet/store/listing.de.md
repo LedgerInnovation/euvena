@@ -48,6 +48,10 @@ Euvena ist Open Source. Der Code und die Bibliothek für Zahlungscodes dahinter 
 
 Finanzen (beide Stores)
 
+## URL der Datenschutzerklärung
+
+https://ledgerinnovation.com/euvena/privacy/
+
 ## Support-URL
 
 https://github.com/LedgerInnovation/euvena/issues
