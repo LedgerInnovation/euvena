@@ -15,6 +15,12 @@ export const de: Dictionary = {
     text: "der Verwendungszweck",
     information: "die Hinweiszeile",
     payload: "der Gesamtaufbau",
+    tradeName: "der Handelsname",
+    referenceParty: "die vertretene Partei",
+    instrument: "die Überweisungsart",
+    currency: "die Währung",
+    category: "die Händlerkategorie",
+    routing: "die Routing-Angaben",
     other: "ein Element",
   },
   rows: {
@@ -27,6 +33,24 @@ export const de: Dictionary = {
     text: "Verwendungszweck",
     information: "Hinweis",
     payerDecides: "vom Zahler eingegeben",
+    tradeName: "Handelsname",
+    onBehalfOf: "Im Auftrag von",
+    onBehalfOfTrade: "Im Auftrag von, Handelsname",
+    transfer: "Überweisung",
+    instant: "Echtzeit",
+    standard: "Standard",
+    category: "Händlerkategorie",
+    context: "Zahlungskontext",
+    contexts: {
+      m: "Im Geschäft",
+      e: "Online-Einkauf",
+      i: "Rechnung",
+      p: "Von Person zu Person",
+      w: "Webseite",
+    },
+    framework: "Rahmenwerk",
+    provider: "Anbieter",
+    issuer: "Aussteller",
   },
   common: {
     cancel: "Abbrechen",
@@ -55,6 +79,11 @@ export const de: Dictionary = {
     requestTooLong: "Die Anforderung passt nicht in einen Code. Kürze den Text.",
     unencodable: "Die Anforderung konnte nicht kodiert werden.",
     inPayeeSettings: "(Empfängereinstellungen)",
+    amountRequired: "Ein EN-18184-Code enthält einen festen Betrag. Gib einen ein.",
+    poiTextShape: "Bis zu 35 sichtbare Zeichen in einer Zeile in einem EN-18184-Code",
+    poiReferenceShape:
+      "Bis zu 35 Zeichen; eine Referenz, die mit RF beginnt, muss ihre Prüfziffern bestehen",
+    poiProfile: "Prüfe die EN-18184-Einstellungen.",
   },
   rejections: {
     empty: "Es gibt nichts zu lesen.",
@@ -83,6 +112,13 @@ export const de: Dictionary = {
     linkNoRequest: "Der Link enthält keine Zahlungsanforderung.",
     linkDamaged: "Der Link ist beschädigt und kann nicht gelesen werden.",
     linkInvalid: "Der Link enthält keine gültige Zahlungsanforderung.",
+    poiNot: "Die App kann diese Adresse nicht als EN-18184-Zahlungscode lesen. Es wurde nichts geöffnet.",
+    poiInvalid: (elements) =>
+      `Der EN-18184-Code ist keine gültige Zahlungsanforderung. Nicht bestanden: ${joinList(elements)}.`,
+    poiNoRequest: "Der EN-18184-Code enthält keine gültige Zahlungsanforderung.",
+    poiNeedsProvider:
+      "Dieser EN-18184-Code bezeichnet den Empfänger über einen Zahlungsdienstleister, und nur dessen App kann ihn auflösen. Euvena liest Codes, die die Empfängerdaten vollständig enthalten.",
+    poiNotEuro: "Der EN-18184-Code verlangt eine andere Währung als Euro.",
   },
   request: {
     title: "Geld anfordern",
@@ -110,6 +146,19 @@ export const de: Dictionary = {
     referencePlaceholder: "RF18539007547034",
     textHint: "Bis zu 140 Zeichen Text",
     referenceHint: "Eine strukturierte Gläubigerreferenz, bis zu 35 Zeichen",
+    format: "Codeformat",
+    formatEpc: "EPC-QR",
+    formatPoi: "EN 18184",
+    formatEpcHint: "Wird von den meisten europäischen Banking-Apps gelesen.",
+    formatPoiHint:
+      "Für Apps in einem EN-18184-Rahmenwerk. Der Code ist eine Webadresse auf der Domain des Rahmenwerks und enthält einen festen Betrag.",
+    transfer: "Überweisung",
+    instant: "Echtzeit",
+    standard: "Standard",
+    enterAmount: "Betrag eingeben",
+    amountRequiredA11y: "Betrag in Euro, für einen EN-18184-Code erforderlich",
+    poiTextHint: "Bis zu 35 Zeichen Text",
+    poiReferenceHint: "Eine strukturierte Referenz, bis zu 35 Zeichen",
   },
   composed: {
     shareTitle: "Zahlungsanforderung",
@@ -124,6 +173,8 @@ export const de: Dictionary = {
     whatTheCodeSays: "Was der Code sagt",
     figures: ({ version, bytes, maxBytes, qrVersion, maxQrVersion, correction }) =>
       `EPC069-12 Version ${version}, UTF-8, ${bytes} von ${maxBytes} Bytes. QR-Version ${qrVersion} von ${maxQrVersion}, Fehlerkorrektur ${correction}.`,
+    poiFigures: ({ characters, qrVersion, correction }) =>
+      `EN 18184 (EPC024-22) Version 1, ${characters} Zeichen. QR-Version ${qrVersion}, Fehlerkorrektur ${correction}.`,
     shareFailed: "Die Anforderung konnte nicht geteilt werden.",
     renderFailed: "Der Code konnte nicht gezeichnet werden.",
   },
@@ -141,7 +192,7 @@ export const de: Dictionary = {
       "Die Kamera ist für diese App in den Systemeinstellungen ausgeschaltet. Einfügen unten funktioniert weiterhin.",
     pointCamera: "Richte die Kamera auf einen Zahlungs-QR-Code.",
     pasteLabel: "Oder eine Anforderung einfügen",
-    pastePlaceholder: "Ein euvena://- oder payto://-Link oder der Text eines Codes",
+    pastePlaceholder: "Ein euvena://-, payto://- oder https://-Link oder der Text eines Codes",
     readPasted: "Eingefügtes lesen",
     reviewHint:
       "Werte aus dem Code selbst. Prüfe Name und IBAN bei der Person, die um Zahlung bittet; der Code kann das nicht für dich tun.",
@@ -159,6 +210,10 @@ export const de: Dictionary = {
     rejectionHint:
       "Eine Anforderung, die eine Prüfung nicht besteht, wird gar nicht angezeigt: ein teilweise gelesener Code könnte Geld auf das falsche Konto lenken.",
     tryAgain: "Erneut versuchen",
+    poiRead:
+      "Dieser EN-18184-Code ist eine Webadresse. Die App hat ihn auf diesem Gerät gelesen und nichts geöffnet.",
+    instantAsked:
+      "Der Empfänger bittet um eine Echtzeitüberweisung. Wähle sie in deiner Banking-App, wo sie angeboten wird.",
   },
   history: {
     title: "Verlauf",
@@ -252,9 +307,32 @@ export const de: Dictionary = {
     requestsCount: (n) => `${n} ${n === 1 ? "Anforderung" : "Anforderungen"}`,
     and: (a, b) => `${a} und ${b}`,
     shareDialog: "Daten der App speichern oder senden",
+    poi: "EN-18184-Codes",
+    poiOff: "Aus",
+    poiHint:
+      "Codes für den Point of Interaction mit den Angaben erstellen, die dir ein MSCT-Rahmenwerk zugewiesen hat.",
     about: "Über",
     aboutText:
-      "Euvena ist eine Referenz-App für EPC069-12-Zahlungscodes. Sie hat keine Konten und keinen Server und bewegt nie Geld: eine Anforderung wird an deine Banking-App übergeben.",
+      "Euvena ist eine Referenz-App für EPC069-12- und EN-18184-Zahlungscodes. Sie hat keine Konten und keinen Server und bewegt nie Geld: eine Anforderung wird an deine Banking-App übergeben.",
+  },
+  poi: {
+    title: "EN-18184-Codes",
+    subtitle:
+      "Nur auf diesem Gerät gespeichert. Anforderungen lassen sich dann auch als EN-18184-Codes erstellen, nicht nur als EPC-QR-Codes.",
+    domain: "Domain des Rahmenwerks",
+    domainPlaceholder: "qr.example.org",
+    domainShape: "Nur den Hostnamen eingeben, ohne https:// und ohne Pfad",
+    providerId: "Anbieter-ID",
+    providerPlaceholder: "3 Buchstaben oder Ziffern",
+    providerShape: "Genau 3 Buchstaben oder Ziffern",
+    issuer: "Aussteller-ID",
+    issuerPlaceholder: "3 Buchstaben oder Ziffern",
+    issuerShape: "Genau 3 Buchstaben oder Ziffern",
+    explainer:
+      "Ein EN-18184-Code ist eine Webadresse auf der Domain eines MSCT-Interoperabilitätsrahmenwerks, die über die Anbieter-ID an deinen Zahlungsdienstleister geleitet wird. Verwende die Werte, die dir dein Rahmenwerk oder Anbieter gegeben hat: Codes mit anderen Werten verweisen auf eine Adresse, die nicht dir gehört.",
+    saveFailed: "Die Einstellungen konnten nicht auf diesem Gerät gespeichert werden.",
+    turnOff: "EN-18184-Codes ausschalten",
+    turningOff: "Wird ausgeschaltet",
   },
 };
 

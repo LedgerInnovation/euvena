@@ -15,7 +15,7 @@
 export interface HistoryEntry {
   /** Unique within the list. Derived from the build time, see rememberRequest. */
   id: string;
-  /** The EPC069-12 payload, exactly as the code carried it. */
+  /** What the code carried, exactly: an EPC069-12 payload or an EN 18184 URL. */
   payload: string;
   /** When the request was built, as an ISO 8601 instant. */
   builtAt: string;
@@ -27,10 +27,17 @@ export interface HistoryEntry {
 export const HISTORY_LIMIT = 200;
 
 /**
- * Longest payload an entry may hold. A conformant payload is at most 331
- * bytes, so anything far past that is not something this app wrote.
+ * Longest payload an entry may hold. A conformant EPC069-12 payload is at most
+ * 331 bytes and an EN 18184 URL the wallet builds, with every text field full
+ * of escaped characters, stays under 2048, so anything past that is not
+ * something this app wrote.
  */
-export const MAX_PAYLOAD_LENGTH = 1024;
+export const MAX_PAYLOAD_LENGTH = 2048;
+
+/** How the two kinds of payload begin; an EN 18184 URL is compared without case. */
+function isPayloadShaped(payload: string): boolean {
+  return payload.startsWith("BCD") || payload.slice(0, 8).toLowerCase() === "https://";
+}
 
 /**
  * Reads a stored history, dropping anything that is not a well-formed entry.
@@ -80,9 +87,9 @@ function parseEntry(item: unknown): HistoryEntry | null {
     typeof record.id !== "string" ||
     record.id === "" ||
     typeof record.payload !== "string" ||
-    // Only an EPC069-12 payload is shown by decoding it as one. Any other
-    // string would be read as a link and shown as something else.
-    !record.payload.startsWith("BCD") ||
+    // Only a code's payload is shown by decoding it as one. Any other string
+    // would be read as a link and shown as something else.
+    !isPayloadShaped(record.payload) ||
     record.payload.length > MAX_PAYLOAD_LENGTH ||
     typeof record.builtAt !== "string" ||
     Number.isNaN(Date.parse(record.builtAt))

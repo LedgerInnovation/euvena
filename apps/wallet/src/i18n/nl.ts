@@ -15,6 +15,12 @@ export const nl: Dictionary = {
     text: "de omschrijving",
     information: "de informatieregel",
     payload: "de algehele opbouw",
+    tradeName: "de handelsnaam",
+    referenceParty: "de partij namens wie wordt geïnd",
+    instrument: "het soort overboeking",
+    currency: "de valuta",
+    category: "de branchecode",
+    routing: "de routeringsgegevens",
     other: "een element",
   },
   rows: {
@@ -27,6 +33,24 @@ export const nl: Dictionary = {
     text: "Omschrijving",
     information: "Informatie",
     payerDecides: "ingevuld door de betaler",
+    tradeName: "Handelsnaam",
+    onBehalfOf: "Namens",
+    onBehalfOfTrade: "Namens, handelsnaam",
+    transfer: "Overboeking",
+    instant: "Direct",
+    standard: "Standaard",
+    category: "Branchecode",
+    context: "Betaalcontext",
+    contexts: {
+      m: "In de winkel",
+      e: "Online aankoop",
+      i: "Factuur",
+      p: "Tussen personen",
+      w: "Webpagina",
+    },
+    framework: "Raamwerk",
+    provider: "Aanbieder",
+    issuer: "Uitgever",
   },
   common: {
     cancel: "Annuleren",
@@ -55,6 +79,11 @@ export const nl: Dictionary = {
     requestTooLong: "Het verzoek past niet in een code. Kort de tekst in.",
     unencodable: "Het verzoek kon niet worden gecodeerd.",
     inPayeeSettings: "(instellingen begunstigde)",
+    amountRequired: "Een EN 18184-code bevat een vast bedrag. Vul er een in.",
+    poiTextShape: "Tot 35 zichtbare tekens op één regel in een EN 18184-code",
+    poiReferenceShape:
+      "Tot 35 tekens; een kenmerk dat met RF begint, moet zijn controlecijfers doorstaan",
+    poiProfile: "Controleer de EN 18184-instellingen.",
   },
   rejections: {
     empty: "Er is niets te lezen.",
@@ -83,6 +112,13 @@ export const nl: Dictionary = {
     linkNoRequest: "De link bevat geen betaalverzoek.",
     linkDamaged: "De link is beschadigd en kan niet worden gelezen.",
     linkInvalid: "De link bevat geen geldig betaalverzoek.",
+    poiNot: "De app kan dit adres niet lezen als EN 18184-betaalcode. Er is niets geopend.",
+    poiInvalid: (elements) =>
+      `De EN 18184-code is geen geldig betaalverzoek. Niet door de controles: ${joinList(elements)}.`,
+    poiNoRequest: "De EN 18184-code bevat geen geldig betaalverzoek.",
+    poiNeedsProvider:
+      "Deze EN 18184-code wijst de begunstigde aan via een betaaldienstverlener, en alleen de app van die aanbieder kan dat opzoeken. Euvena leest codes die de gegevens van de begunstigde volledig bevatten.",
+    poiNotEuro: "De EN 18184-code vraagt om een andere valuta dan de euro.",
   },
   request: {
     title: "Geld vragen",
@@ -110,6 +146,19 @@ export const nl: Dictionary = {
     referencePlaceholder: "RF18539007547034",
     textHint: "Tot 140 tekens tekst",
     referenceHint: "Een gestructureerd kenmerk van de schuldeiser, tot 35 tekens",
+    format: "Codeformaat",
+    formatEpc: "EPC-QR",
+    formatPoi: "EN 18184",
+    formatEpcHint: "Gelezen door de meeste Europese bankapps.",
+    formatPoiHint:
+      "Voor apps in een EN 18184-raamwerk. De code is een webadres op het domein van het raamwerk en bevat een vast bedrag.",
+    transfer: "Overboeking",
+    instant: "Direct",
+    standard: "Standaard",
+    enterAmount: "Vul een bedrag in",
+    amountRequiredA11y: "Bedrag in euro, verplicht voor een EN 18184-code",
+    poiTextHint: "Tot 35 tekens tekst",
+    poiReferenceHint: "Een gestructureerd kenmerk, tot 35 tekens",
   },
   composed: {
     shareTitle: "Betaalverzoek",
@@ -124,6 +173,8 @@ export const nl: Dictionary = {
     whatTheCodeSays: "Wat de code zegt",
     figures: ({ version, bytes, maxBytes, qrVersion, maxQrVersion, correction }) =>
       `EPC069-12 versie ${version}, UTF-8, ${bytes} van ${maxBytes} bytes. QR-versie ${qrVersion} van ${maxQrVersion}, foutcorrectie ${correction}.`,
+    poiFigures: ({ characters, qrVersion, correction }) =>
+      `EN 18184 (EPC024-22) versie 1, ${characters} tekens. QR-versie ${qrVersion}, foutcorrectie ${correction}.`,
     shareFailed: "Het verzoek kon niet worden gedeeld.",
     renderFailed: "De code kon niet worden getekend.",
   },
@@ -141,7 +192,7 @@ export const nl: Dictionary = {
       "De camera staat voor deze app uit in de systeeminstellingen. Plakken hieronder werkt nog wel.",
     pointCamera: "Richt de camera op een betaal-QR-code.",
     pasteLabel: "Of plak een verzoek",
-    pastePlaceholder: "Een euvena://- of payto://-link, of de tekst van een code",
+    pastePlaceholder: "Een euvena://-, payto://- of https://-link, of de tekst van een code",
     readPasted: "Geplakte tekst lezen",
     reviewHint:
       "Waarden uit de code zelf. Controleer naam en IBAN bij degene die om betaling vraagt; de code kan dat niet voor je doen.",
@@ -159,6 +210,10 @@ export const nl: Dictionary = {
     rejectionHint:
       "Een verzoek dat een controle niet doorstaat wordt helemaal niet getoond: een gedeeltelijke lezing zou geld naar de verkeerde rekening kunnen sturen.",
     tryAgain: "Opnieuw proberen",
+    poiRead:
+      "Deze EN 18184-code is een webadres. De app heeft hem op dit apparaat gelezen en niets geopend.",
+    instantAsked:
+      "De begunstigde vraagt om een directe overboeking. Kies die in je bankapp als die wordt aangeboden.",
   },
   history: {
     title: "Geschiedenis",
@@ -253,9 +308,31 @@ export const nl: Dictionary = {
     requestsCount: (n) => `${n} verzoek${n === 1 ? "" : "en"}`,
     and: (a, b) => `${a} en ${b}`,
     shareDialog: "Gegevens van de app opslaan of versturen",
+    poi: "EN 18184-codes",
+    poiOff: "Uit",
+    poiHint: "Maak codes voor het interactiepunt met de gegevens die een MSCT-raamwerk je heeft toegewezen.",
     about: "Over",
     aboutText:
-      "Euvena is een referentie-app voor EPC069-12-betaalcodes. De app heeft geen accounts en geen server en verplaatst nooit geld: een verzoek wordt aan je bankapp doorgegeven.",
+      "Euvena is een referentie-app voor EPC069-12- en EN 18184-betaalcodes. De app heeft geen accounts en geen server en verplaatst nooit geld: een verzoek wordt aan je bankapp doorgegeven.",
+  },
+  poi: {
+    title: "EN 18184-codes",
+    subtitle:
+      "Alleen op dit apparaat bewaard. Verzoeken kunnen dan ook als EN 18184-code worden gemaakt, naast EPC-QR-codes.",
+    domain: "Domein van het raamwerk",
+    domainPlaceholder: "qr.example.org",
+    domainShape: "Vul alleen de hostnaam in, zonder https:// of pad",
+    providerId: "Aanbieder-ID",
+    providerPlaceholder: "3 letters of cijfers",
+    providerShape: "Precies 3 letters of cijfers",
+    issuer: "Uitgever-ID",
+    issuerPlaceholder: "3 letters of cijfers",
+    issuerShape: "Precies 3 letters of cijfers",
+    explainer:
+      "Een EN 18184-code is een webadres op het domein van een MSCT-interoperabiliteitsraamwerk, dat via de ID naar je betaaldienstverlener wordt geleid. Gebruik de waarden die je raamwerk of aanbieder je heeft gegeven: codes met andere waarden verwijzen naar een adres dat niet van jou is.",
+    saveFailed: "De instellingen konden niet op dit apparaat worden opgeslagen.",
+    turnOff: "EN 18184-codes uitzetten",
+    turningOff: "Wordt uitgezet",
   },
 };
 

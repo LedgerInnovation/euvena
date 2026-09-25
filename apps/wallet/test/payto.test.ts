@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { describeRejection, en } from "../src/i18n";
 
 import { buildPaytoUri, handoffFields, parsePaytoUri } from "../src/epc/payto";
-import { buildPaymentRequest, type Payee, type RequestForm } from "../src/epc/request";
+import { EMPTY_FORM, buildPaymentRequest, type Payee, type RequestForm } from "../src/epc/request";
 import { readPastedRequest, readPaymentRequest } from "../src/epc/scan";
 
 const payee: Payee = {
@@ -22,6 +22,7 @@ function dataFor(form: RequestForm, withPayee: Payee = payee) {
 describe("buildPaytoUri", () => {
   it("maps a full request onto RFC 8905", () => {
     const data = dataFor({
+      ...EMPTY_FORM,
       amount: "13,05",
       remittanceKind: "text",
       remittance: "Spende fuer Wikipedia",
@@ -36,7 +37,7 @@ describe("buildPaytoUri", () => {
   });
 
   it("leaves the amount out when the payer decides it", () => {
-    const data = dataFor({ amount: "", remittanceKind: "text", remittance: "" });
+    const data = dataFor({ ...EMPTY_FORM, amount: "", remittanceKind: "text", remittance: "" });
 
     const uri = buildPaytoUri(data);
 
@@ -51,6 +52,7 @@ describe("buildPaytoUri", () => {
     // the structured creditor reference, so emitting it through either would
     // silently downgrade it and reconciliation could miss it.
     const data = dataFor({
+      ...EMPTY_FORM,
       amount: "10",
       remittanceKind: "reference",
       remittance: "RF18539007547034",
@@ -65,7 +67,7 @@ describe("buildPaytoUri", () => {
 
   it("puts the BIC ahead of the IBAN in the path", () => {
     const data = dataFor(
-      { amount: "5", remittanceKind: "text", remittance: "" },
+      { ...EMPTY_FORM, amount: "5", remittanceKind: "text", remittance: "" },
       { ...payee, bic: "BFSWDE33BER" },
     );
 
@@ -74,6 +76,7 @@ describe("buildPaytoUri", () => {
 
   it("percent encodes characters that would restructure the URI", () => {
     const data = dataFor({
+      ...EMPTY_FORM,
       amount: "5",
       remittanceKind: "text",
       remittance: "Rechnung 44 & 45 = bezahlt",
@@ -88,6 +91,7 @@ describe("buildPaytoUri", () => {
 describe("handoffFields", () => {
   it("offers the raw values a transfer form expects", () => {
     const data = dataFor({
+      ...EMPTY_FORM,
       amount: "13,05",
       remittanceKind: "reference",
       remittance: "RF18539007547034",
@@ -103,7 +107,7 @@ describe("handoffFields", () => {
 
   it("adds the BIC row only when the payload carries one", () => {
     const data = dataFor(
-      { amount: "", remittanceKind: "text", remittance: "" },
+      { ...EMPTY_FORM, amount: "", remittanceKind: "text", remittance: "" },
       { ...payee, bic: "BFSWDE33BER" },
     );
 
@@ -128,10 +132,10 @@ function reasonFor(uri: string): string {
 describe("reading a payto link", () => {
   it("round-trips every request the handoff emits", () => {
     for (const [form, withPayee] of [
-      [{ amount: "13,05", remittanceKind: "text", remittance: "Spende fuer Wikipedia" }, payee],
-      [{ amount: "", remittanceKind: "text", remittance: "" }, payee],
-      [{ amount: "12,3", remittanceKind: "text", remittance: "A+B & C = 100%" }, payee],
-      [{ amount: "5", remittanceKind: "text", remittance: "" }, { ...payee, bic: "BFSWDE33BER" }],
+      [{ ...EMPTY_FORM, amount: "13,05", remittanceKind: "text", remittance: "Spende fuer Wikipedia" }, payee],
+      [{ ...EMPTY_FORM, amount: "", remittanceKind: "text", remittance: "" }, payee],
+      [{ ...EMPTY_FORM, amount: "12,3", remittanceKind: "text", remittance: "A+B & C = 100%" }, payee],
+      [{ ...EMPTY_FORM, amount: "5", remittanceKind: "text", remittance: "" }, { ...payee, bic: "BFSWDE33BER" }],
     ] as const) {
       const data = dataFor(form, withPayee);
 

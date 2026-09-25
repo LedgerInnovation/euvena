@@ -19,7 +19,8 @@ the payees, the appearance, the language and the file that moves the data to ano
 wallet speaks English, German, French, Spanish, Italian, Dutch and Polish, and follows the device
 language until one is chosen by hand. The screens follow the system appearance, light or dark, or
 the one chosen in the settings, and a native build shows the logo on a splash screen while the
-settings are read. EN 18184 codes are not supported yet; see the checklist on the tracking issue.
+settings are read. EN 18184 codes are read, and built once the settings hold the framework
+details they need; see [EN 18184 codes](#en-18184-codes).
 
 ## Languages and appearance
 
@@ -58,7 +59,8 @@ restarts, so a failed read never turns into a lost list.
 
 Settings offers an export and an import. The export writes the payees and the kept requests to
 one JSON file and hands it to the share sheet of the operating system, so where it goes is the
-user's choice; the wallet sends nothing itself. The file names its format and a version number,
+user's choice; the wallet sends nothing itself. The appearance, the language and the EN 18184
+details are settings of the device and stay out of the file. The file names its format and a version number,
 so a later shape of the file can still read an earlier export, and an export written by a newer
 wallet is refused with a message rather than misread.
 
@@ -207,6 +209,67 @@ The app does not register `payto` with the operating system, so a tapped payto l
 open it. The handoff itself opens a payto URI, so a wallet registered for the scheme would be
 offered its own handoff.
 
+## EN 18184 codes
+
+EN 18184:2025, published from EPC024-22, is the point-of-interaction format: a code is an https
+URL rather than the line-based EPC069-12 payload.
+
+```
+https://<framework domain>/1/<payment context>/<provider ID>/?<payload>
+```
+
+The domain belongs to an MSCT interoperability framework, the provider ID routes the payment to
+the payee's MSCT service provider and the payload names its issuer by another ID. The framework
+issues all three, and nothing in the code can be looked up to find them, so the wallet builds no
+EN 18184 code until they are entered under Settings, EN 18184 codes. The form checks them with the
+encoder: a bare domain name, not an IP address in any spelling and not an internationalised
+(punycode) name, which URL parsers read differently, and two IDs of 3 letters or digits. From
+then on the request screen offers a choice of format, EPC QR or EN 18184, and for EN 18184 a
+choice of an instant or a standard transfer. The code is built with the payload profile that carries all data in clear, in
+the person-to-person context `p`, and uses the parameter names of the Euvena profile v1 that
+`@euvena/qr` documents.
+
+What changes for the payee against an EPC069-12 code:
+
+| | EPC069-12 | EN 18184 |
+| --- | --- | --- |
+| Read by | Most European banking apps | Apps in an EN 18184 framework |
+| Amount | Optional; the payer can decide | Required |
+| Remittance | Text up to 140 characters, or a creditor reference | Text or a structured reference, up to 35 characters |
+| BIC | Carried when the payee has one | Not carried; the format has no element for it |
+| Transfer | Not stated | Instant or standard, as chosen |
+| Symbol | Level M, version 13 at most, as EPC069-12 requires | Level M; EPC024-22 names ISO/IEC 18004 and fixes no version, so up to 40 |
+
+A kept EN 18184 request goes into the history like any other and a shared one travels as its own
+URL, since that is already the request. Turning the codes off in the settings brings the request
+screen back to EPC069-12 only; the draft keeps what was picked for when they are set up again.
+
+EPC024-22 leaves the query parameter names to the payload issuer, so the wallet reads the names
+of the Euvena profile v1 only. A conformant code from an issuer that chose other names is refused
+as an address the wallet cannot read as an EN 18184 code.
+
+On the paying side a scanned or pasted `https://` address goes to the EN 18184 decoder, with the
+scheme and host compared without case, since EPC024-22 writes its examples in capitals. A code with
+all data in clear gets the same review as an EPC069-12 code, plus the transfer the payee asks for,
+any trade name, reference party and merchant category, the payment context, and the framework,
+provider and issuer the address names. A phone camera would have opened that address; the wallet
+reads it on the device and opens nothing, and the review says so. When the payee asks for an
+instant transfer, the handoff says so too, because neither the payto link nor a transfer form field
+carries it.
+
+Refused, as a whole:
+
+| Code | Why |
+| --- | --- |
+| Token or proxy profile | The token or proxy stands for payee data that only the payee's provider can resolve, over its own network |
+| A currency other than euro, compared without case | SEPA transfers are made in euro, and the handoff states a euro amount |
+| Any field that fails a check, or any parameter given twice | Named by element, never quoted, as for EPC069-12 |
+| An https address without the EN 18184 structure or the Euvena profile v1 names, served from an IP address or a punycode host, or with credentials, a port or a fragment | The wallet cannot read it as an EN 18184 code, and opens nothing |
+
+The codec parses the URL with the global `URL`. React Native's own `URL` is not the WHATWG one and
+cuts a value at a second `=`, but Expo's runtime replaces it with a WHATWG implementation, against
+which the codec's EN 18184 tests pass unchanged.
+
 ## Running it
 
 From the repository root:
@@ -238,10 +301,10 @@ pnpm --filter @euvena/wallet build   # bundles the JS, no native toolchain requi
 | --- | --- |
 | `App.tsx` | Root component, loads the payee settings, opens incoming links, holds the tab bar and switches between the screens |
 | `plugins/` | Config plugin that keeps a restored Android activity from reopening its launch link |
-| `src/epc/` | Form state to EPC069-12 payload, the link form of a request, plus the display formatting |
+| `src/epc/` | Form state to an EPC069-12 payload or an EN 18184 URL (`poi.ts`), the link form of a request, plus the display formatting |
 | `src/i18n/` | The typed dictionary shape, one file per language, language resolution and number and date formatting |
 | `src/qr/` | QR symbol construction and its SVG path |
-| `src/settings/` | Payee settings, the appearance and language preferences, the request history and the data file that moves them, on-device only |
+| `src/settings/` | Payee settings, the appearance, language and EN 18184 preferences, the request history and the data file that moves them, on-device only |
 | `src/ui/` | Screens, the building blocks they share (`kit.tsx`), the palette for both appearances (`theme.ts`), the QR view and the file share and pick (`dataFile.ts`) |
 | `metro.config.js` | Workspace-aware resolver so `packages/*` resolve and hot-reload |
 | `test/` | Plain-TypeScript tests; the React Native surface is covered by typecheck and lint |

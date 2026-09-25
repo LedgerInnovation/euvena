@@ -2,26 +2,26 @@
  * Reads payer-side input, a scanned QR code, pasted text or a link the app was
  * opened with, back into a payment request.
  *
- * Three shapes arrive here: the EPC069-12 payload itself, which is what a
- * displayed or printed code carries, the shared-link form from ./link and an
- * RFC 8905 payto URI from ./payto. All of them end at the same codec in strict
- * mode, so nothing scanned, pasted or opened can present values that a code
- * could not carry.
+ * Four shapes arrive here: the EPC069-12 payload itself, which is what a
+ * displayed or printed code carries, the https URL of an EN 18184 code from
+ * ./poi, the shared-link form from ./link and an RFC 8905 payto URI from
+ * ./payto. Each ends at its codec with every check applied, so nothing
+ * scanned, pasted or opened can present values that a code could not carry.
  *
  * Rejection reasons are fixed sentences that name the element that failed and
  * nothing else. The codec's own messages can quote the value they rejected,
  * and a scanned code is someone else's writing, so they are never shown.
  */
 
-import { EpcQrError, decodeEpcQr, encodeEpcQr, type EpcQrData } from "@euvena/qr";
+import { EpcQrError, decodeEpcQr, encodeEpcQr } from "@euvena/qr";
 
 import { elementKeys, sameRejection, type Rejection } from "../i18n";
 import { REQUEST_LINK_SCHEME, parseRequestLink } from "./link";
 import { PAYTO_SCHEME, parsePaytoUri } from "./payto";
+import { readPoiRequest } from "./poi";
+import { type PaymentCode } from "./request";
 
-export type ReadRequestResult =
-  | { ok: true; payload: string; data: EpcQrData }
-  | { ok: false; reason: Rejection };
+export type ReadRequestResult = ({ ok: true } & PaymentCode) | { ok: false; reason: Rejection };
 
 /** A request the app was opened with, numbered in order of arrival. */
 export interface OpenedRequest {
@@ -39,6 +39,12 @@ const OWN_SCHEME_PREFIX = `${REQUEST_LINK_SCHEME}:`;
 
 /** How a payto URI begins, compared without case. */
 const PAYTO_PREFIX = `${PAYTO_SCHEME}://`;
+
+/**
+ * How an EN 18184 code begins, compared without case: EPC024-22 writes its
+ * examples in capitals, which a QR code stores more compactly.
+ */
+const POI_PREFIX = "https://";
 
 const PAYTO_TOO_LONG: Rejection = { code: "paytoTooLong" };
 
@@ -58,7 +64,7 @@ const PAYTO_TOO_LONG: Rejection = { code: "paytoTooLong" };
 export function readPaymentRequest(input: string): ReadRequestResult {
   if (input.startsWith("BCD")) {
     try {
-      return { ok: true, payload: input, data: decodeEpcQr(input).data };
+      return { ok: true, format: "epc069", payload: input, data: decodeEpcQr(input).data };
     } catch (error) {
       if (error instanceof EpcQrError) {
         return { ok: false, reason: rejectionOf(error, "codeInvalid") };
@@ -71,6 +77,10 @@ export function readPaymentRequest(input: string): ReadRequestResult {
   if (trimmed === "") return { ok: false, reason: { code: "empty" } };
   if (trimmed.slice(0, PAYTO_PREFIX.length).toLowerCase() === PAYTO_PREFIX) {
     return readPaytoRequest(trimmed);
+  }
+  if (trimmed.slice(0, POI_PREFIX.length).toLowerCase() === POI_PREFIX) {
+    const read = readPoiRequest(trimmed);
+    return read.ok ? { ...read, format: "en18184" } : read;
   }
   if (SCHEME_SHAPED.test(trimmed)) return parseRequestLink(trimmed);
 
@@ -91,7 +101,7 @@ function readPaytoRequest(uri: string): ReadRequestResult {
   if (!parsed.ok) return parsed;
   try {
     const payload = encodeEpcQr(parsed.request);
-    return { ok: true, payload, data: decodeEpcQr(payload).data };
+    return { ok: true, format: "epc069", payload, data: decodeEpcQr(payload).data };
   } catch (error) {
     if (error instanceof EpcQrError) {
       if (error.issues.some((issue) => issue.element === "payload")) {

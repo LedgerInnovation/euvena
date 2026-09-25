@@ -151,6 +151,31 @@ export interface PayerTokenOptions extends CommonEncodeOptions {
 const HOSTNAME_RE =
   /^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/;
 
+/**
+ * A last label the WHATWG host parser reads as a number: all digits, or "0x"
+ * and hex digits. Such a host is an IPv4 address in another spelling ("123"
+ * is 0.0.0.123) or, when the number is out of range, no URL at all, and no
+ * top-level domain looks like that (RFC 3696 section 2).
+ */
+const NUMERIC_LABEL_RE = /(?:^|\.)(?:0x[0-9a-f]*|[0-9]+)\.?$/i;
+
+/**
+ * A label with hyphens in its third and fourth place, which RFC 5891 section
+ * 4.2.3.1 reserves: "xn--" labels are punycode. Parsers disagree on them,
+ * since Node's URL runs IDNA and refuses "xn--a" while the WHATWG parser that
+ * Expo installs in React Native takes it as written, so a code would read on
+ * a phone and fail in a browser. Internationalised domains are not accepted.
+ */
+const RESERVED_LABEL_RE = /(?:^|\.)[A-Za-z0-9]{2}--/;
+
+/**
+ * A domain name: a hostname that is not an IP address in any spelling and
+ * that every URL parser reads the same way.
+ */
+function isDomainName(host: string): boolean {
+  return HOSTNAME_RE.test(host) && !NUMERIC_LABEL_RE.test(host) && !RESERVED_LABEL_RE.test(host);
+}
+
 /** Query parameter names must be non-empty, unique, and URL-safe unreserved. */
 const KEY_NAME_RE = /^[A-Za-z0-9._~-]+$/;
 
@@ -182,7 +207,7 @@ function baseUrl(domain: string, version: number, context: string, providerId: s
   // The domain must be a bare hostname. Interpolating anything else lets a
   // caller point the QR at another host entirely, for example by smuggling
   // credentials ("trusted.example@evil.example") or a path.
-  if (!HOSTNAME_RE.test(domain)) {
+  if (!isDomainName(domain)) {
     throw new MsctQrError("invalid domain", [
       {
         field: "domain",
@@ -207,7 +232,15 @@ function baseUrl(domain: string, version: number, context: string, providerId: s
       { field: "context", message: "must be a single alphanumeric character" },
     ]);
   }
-  return new URL(`https://${domain}/${version}/${context}/${providerId}/`);
+  try {
+    return new URL(`https://${domain}/${version}/${context}/${providerId}/`);
+  } catch {
+    // The checks above leave nothing the URL parser refuses; this keeps a
+    // parser that disagrees from surfacing as anything but a domain issue.
+    throw new MsctQrError("invalid domain", [
+      { field: "domain", message: "must be a bare hostname the URL parser accepts" },
+    ]);
+  }
 }
 
 function requirePayeeContext(context: string, issues: MsctIssue[]): void {
@@ -489,7 +522,7 @@ export function decodeMsctQr(input: string, options: DecodeMsctOptions = {}): De
       { field: "url", message: `unexpected port ${url.port}` },
     ]);
   }
-  if (!HOSTNAME_RE.test(url.hostname)) {
+  if (!isDomainName(url.hostname)) {
     throw new MsctQrError("invalid domain", [
       { field: "domain", message: `"${url.hostname}" is not a valid hostname` },
     ]);

@@ -9,6 +9,8 @@
  * codec's detail as it is, the way an error code is kept.
  */
 
+import type { MsctContext } from "@euvena/qr";
+
 export const LANGUAGES = ["en", "de", "fr", "es", "it", "nl", "pl"] as const;
 
 export type Language = (typeof LANGUAGES)[number];
@@ -39,6 +41,17 @@ export type ElementKey =
   | "text"
   | "information"
   | "payload"
+  /** EN 18184 only: the merchant's trade name. */
+  | "tradeName"
+  /** EN 18184 only: who the payee collects for. */
+  | "referenceParty"
+  /** EN 18184 only: instant or standard transfer. */
+  | "instrument"
+  | "currency"
+  /** EN 18184 only: the merchant category code. */
+  | "category"
+  /** EN 18184 only: the framework, provider, issuer and payment context. */
+  | "routing"
   /** An element the wallet has no name for. */
   | "other";
 
@@ -63,7 +76,11 @@ export type RejectionCode =
   | "linkRetired"
   | "linkNoRequest"
   | "linkDamaged"
-  | "linkInvalid";
+  | "linkInvalid"
+  | "poiNot"
+  | "poiInvalid"
+  | "poiNeedsProvider"
+  | "poiNotEuro";
 
 /** Why a data file was refused. */
 export type TransferRefusal = "notAnExport" | "newerExport" | "tooLarge" | "bookUnread";
@@ -83,6 +100,19 @@ export interface Dictionary {
     information: string;
     /** The amount row when the code leaves it to the payer. */
     payerDecides: string;
+    /** EN 18184 rows. */
+    tradeName: string;
+    onBehalfOf: string;
+    onBehalfOfTrade: string;
+    transfer: string;
+    instant: string;
+    standard: string;
+    category: string;
+    context: string;
+    contexts: Record<MsctContext, string>;
+    framework: string;
+    provider: string;
+    issuer: string;
   };
   common: {
     cancel: string;
@@ -122,14 +152,26 @@ export interface Dictionary {
     unencodable: string;
     /** Appended to a payee issue listed under the request form. */
     inPayeeSettings: string;
+    /** An EN 18184 code was chosen without an amount. */
+    amountRequired: string;
+    /** EN 18184 remittance text is shorter than EPC069-12's. */
+    poiTextShape: string;
+    poiReferenceShape: string;
+    /** The EN 18184 profile in the settings does not build. */
+    poiProfile: string;
   };
   /** Why an input was not a payment request. Invalid ones name their elements. */
-  rejections: Record<Exclude<RejectionCode, "codeInvalid" | "paytoInvalid">, string> & {
+  rejections: Record<
+    Exclude<RejectionCode, "codeInvalid" | "paytoInvalid" | "poiInvalid">,
+    string
+  > & {
     codeInvalid: (elements: string[]) => string;
     paytoInvalid: (elements: string[]) => string;
+    poiInvalid: (elements: string[]) => string;
     /** A code or link the codec faulted without naming an element. */
     codeNoRequest: string;
     paytoNoRequest: string;
+    poiNoRequest: string;
   };
   request: {
     title: string;
@@ -156,6 +198,20 @@ export interface Dictionary {
     referencePlaceholder: string;
     textHint: string;
     referenceHint: string;
+    /** The choice of code format, offered once an EN 18184 profile is set up. */
+    format: string;
+    formatEpc: string;
+    formatPoi: string;
+    formatEpcHint: string;
+    formatPoiHint: string;
+    transfer: string;
+    instant: string;
+    standard: string;
+    /** The amount placeholder when the code needs one. */
+    enterAmount: string;
+    amountRequiredA11y: string;
+    poiTextHint: string;
+    poiReferenceHint: string;
   };
   composed: {
     shareTitle: string;
@@ -177,6 +233,8 @@ export interface Dictionary {
       maxQrVersion: number;
       correction: string;
     }) => string;
+    /** "EN 18184 (EPC024-22) version 1, {n} characters. QR version {q}, error correction {ec}." */
+    poiFigures: (values: { characters: number; qrVersion: number; correction: string }) => string;
     shareFailed: string;
     renderFailed: string;
   };
@@ -205,6 +263,10 @@ export interface Dictionary {
     nothingRead: string;
     rejectionHint: string;
     tryAgain: string;
+    /** Under the review of an EN 18184 code. */
+    poiRead: string;
+    /** Beside the handoff, when the payee asks for an instant transfer. */
+    instantAsked: string;
   };
   history: {
     title: string;
@@ -290,7 +352,28 @@ export interface Dictionary {
     /** Joins two counted halves: "{a} and {b}". */
     and: (a: string, b: string) => string;
     shareDialog: string;
+    poi: string;
+    poiOff: string;
+    poiHint: string;
     about: string;
     aboutText: string;
+  };
+  /** The EN 18184 profile form. */
+  poi: {
+    title: string;
+    subtitle: string;
+    domain: string;
+    domainPlaceholder: string;
+    domainShape: string;
+    providerId: string;
+    providerPlaceholder: string;
+    providerShape: string;
+    issuer: string;
+    issuerPlaceholder: string;
+    issuerShape: string;
+    explainer: string;
+    saveFailed: string;
+    turnOff: string;
+    turningOff: string;
   };
 }

@@ -24,6 +24,8 @@ interface SettingsScreenProps {
   /** The active payee's name, or null while there is none. */
   activeName: string | null;
   onPayees: () => void;
+  /** Opens the EN 18184 profile form. */
+  onPoi: () => void;
   preferences: Preferences;
   /** The language the device would pick, named for the choice that follows it. */
   deviceLanguage: Language;
@@ -50,6 +52,7 @@ export function SettingsScreen({
   payeeCount,
   activeName,
   onPayees,
+  onPoi,
   preferences,
   deviceLanguage,
   onAppearance,
@@ -136,6 +139,15 @@ export function SettingsScreen({
       <Card>
         <NavRow label={strings.settings.payees} detail={payeeDetail} onPress={onPayees} />
         <Hint>{strings.settings.payeesHint}</Hint>
+      </Card>
+
+      <Card>
+        <NavRow
+          label={strings.settings.poi}
+          detail={preferences.poi === null ? strings.settings.poiOff : preferences.poi.domain}
+          onPress={onPoi}
+        />
+        <Hint>{strings.settings.poiHint}</Hint>
       </Card>
 
       <Card>

@@ -152,6 +152,54 @@ describe("payee-presented MSCT QR codes", () => {
   });
 });
 
+describe("MSCT domains", () => {
+  it("refuses a host the URL parser would read as an IP address, as a domain issue", () => {
+    // "shop.1" and "a.0x" are what a user passes through while typing
+    // "shop.1und1.de"; the parser throws on them. "123" and "0x7f.1" parse,
+    // as 0.0.0.123 and 127.0.0.1, so the code would point somewhere else.
+    for (const domain of [
+      "shop.1",
+      "a.0x",
+      "123",
+      "0x7f.1",
+      "10.0.0.300",
+      "192.168.1.1",
+      // Punycode, which parsers read differently.
+      "xn--a.example",
+      "qr.xn--p1ai",
+    ]) {
+      let caught: unknown;
+      try {
+        encodeMsctPayeeToken({ ...COMMON, domain, context: "p", token: "x" });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught, domain).toBeInstanceOf(MsctQrError);
+      expect((caught as MsctQrError).issues.map((issue) => issue.field), domain).toEqual(["domain"]);
+    }
+  });
+
+  it("keeps domain names whose labels merely start with digits", () => {
+    for (const domain of [
+      "shop.1und1.de",
+      "api.24pay.eu",
+      "0x.example.org",
+      "1.example.org",
+      "a--b.example.org",
+      "qr-x--y.example.org",
+    ]) {
+      const url = encodeMsctPayeeToken({ ...COMMON, domain, context: "p", token: "x" });
+      expect(decodeMsctQr(url).data.domain).toBe(domain);
+    }
+  });
+
+  it("refuses to read a code served from an IP address", () => {
+    expect(() => decodeMsctQr("https://127.0.0.1/1/p/AB1/?iss=XY9&tok=x")).toThrow(MsctQrError);
+    expect(() => decodeMsctQr("https://0x7f.1/1/p/AB1/?iss=XY9&tok=x")).toThrow(MsctQrError);
+    expect(() => decodeMsctQr("https://xn--a.example/1/p/AB1/?iss=XY9&tok=x")).toThrow(MsctQrError);
+  });
+});
+
 describe("payer-presented MSCT QR codes", () => {
   it("roundtrips a payer token with the reserved type segment", () => {
     const url = encodeMsctPayerToken({ ...COMMON, token: "payer-token", valueAddedServices: "loyalty:1" });

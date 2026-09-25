@@ -23,7 +23,7 @@
  * code likewise has no generic option and stays visible in the review only.
  */
 
-import { isValidAmountString, type EncodeEpcQrOptions, type EpcQrData } from "@euvena/qr";
+import { isValidAmountString, type EncodeEpcQrOptions } from "@euvena/qr";
 
 import { type Rejection } from "../i18n";
 
@@ -33,7 +33,20 @@ export const PAYTO_SCHEME = "payto";
 /** The only payment target type the wallet reads: a SEPA account by IBAN. */
 const IBAN_TARGET = "iban";
 
-export function buildPaytoUri(data: EpcQrData): string {
+/**
+ * What a handoff carries, which a code of either format can say. The amount
+ * is in euro: both readers refuse any other currency.
+ */
+export interface TransferDetails {
+  name: string;
+  iban: string;
+  bic?: string | undefined;
+  amount?: string | undefined;
+  reference?: string | undefined;
+  text?: string | undefined;
+}
+
+export function buildPaytoUri(data: TransferDetails): string {
   const path =
     data.bic === undefined
       ? encodeURIComponent(data.iban)
@@ -72,7 +85,7 @@ export interface HandoffField {
  * without display grouping and the amount as the codec's canonical string,
  * because bank forms are filled field by field and reject decoration.
  */
-export function handoffFields(data: EpcQrData): HandoffField[] {
+export function handoffFields(data: TransferDetails): HandoffField[] {
   const fields: HandoffField[] = [
     { key: "payee", value: data.name },
     { key: "iban", value: data.iban },

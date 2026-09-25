@@ -19,7 +19,7 @@
 import { EpcQrError, decodeEpcQr, type EpcQrData } from "@euvena/qr";
 
 import { type Dictionary, type Rejection } from "../i18n";
-import { summarizeRequest } from "./request";
+import { summarizeRequest, type PaymentCode } from "./request";
 
 /** URI scheme of a shared request. */
 export const REQUEST_LINK_SCHEME = "euvena";
@@ -34,7 +34,7 @@ export const REQUEST_LINK_ACTION = "request";
 export const REQUEST_LINK_PARAM = "epc";
 
 export type ParsedRequestLink =
-  | { ok: true; payload: string; data: EpcQrData }
+  | { ok: true; format: "epc069"; payload: string; data: EpcQrData }
   | { ok: false; reason: Rejection };
 
 const NOT_A_REQUEST_LINK: Rejection = { code: "linkNot" };
@@ -113,7 +113,7 @@ export function parseRequestLink(link: string): ParsedRequestLink {
   }
 
   try {
-    return { ok: true, payload, data: decodeEpcQr(payload).data };
+    return { ok: true, format: "epc069", payload, data: decodeEpcQr(payload).data };
   } catch (error) {
     if (error instanceof EpcQrError) {
       // The codec's message can repeat the input it rejected, and a link's
@@ -149,14 +149,11 @@ function findParameter(query: string, name: string): string | undefined {
  *
  * The summary is for the person reading the message and the link is what
  * carries the request; both are built from the decoded payload, so neither can
- * drift from the code.
+ * drift from the code. An EN 18184 code is a URL already, so it travels as
+ * itself.
  */
-export function buildShareMessage(
-  data: EpcQrData,
-  payload: string,
-  strings: Dictionary,
-  tag: string,
-): string {
-  const lines = summarizeRequest(data, strings, tag).map((row) => `${row.label}: ${row.value}`);
-  return `${lines.join("\n")}\n\n${buildRequestLink(payload)}`;
+export function buildShareMessage(code: PaymentCode, strings: Dictionary, tag: string): string {
+  const lines = summarizeRequest(code, strings, tag).map((row) => `${row.label}: ${row.value}`);
+  const link = code.format === "epc069" ? buildRequestLink(code.payload) : code.payload;
+  return `${lines.join("\n")}\n\n${link}`;
 }
