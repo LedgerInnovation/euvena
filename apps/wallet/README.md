@@ -303,6 +303,10 @@ required-reason APIs the dependencies use, and the camera prompt in the seven wa
 targets API 36, the React Native 0.86 default. Listings, review notes, the privacy policy text and
 the questionnaire answers are in [`store/`](store/).
 
+EAS installs the workspace but builds nothing in it, so the `eas-build-post-install` script in
+`package.json` builds `@euvena/qr` before the bundle is made, as the second command under
+[Running it](#running-it) does locally.
+
 Linking the project to an EAS account (`eas init`) and the store credentials are left to the
 publisher and are not part of the repository.
 
