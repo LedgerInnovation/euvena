@@ -1,0 +1,5 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "Euvena używa aparatu tylko do odczytywania kodów QR płatności na karcie „Zapłać”. Nic nie jest nagrywane ani wysyłane."
+  }
+}

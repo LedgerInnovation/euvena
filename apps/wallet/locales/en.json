@@ -1,0 +1,5 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "Euvena uses the camera only to read payment QR codes on the Pay tab. Nothing is recorded or sent."
+  }
+}
