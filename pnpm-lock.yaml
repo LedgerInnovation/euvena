@@ -102,7 +102,7 @@ importers:
   packages/taler:
     dependencies:
       '@euvena/qr':
-        specifier: workspace:^0.1.1
+        specifier: workspace:^
         version: link:../qr
     devDependencies:
       tsup:
