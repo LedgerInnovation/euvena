@@ -31,7 +31,8 @@ Euvena was previously named EUPI. Releases up to September 2026 were published o
 - Builds and reads EN 18184 codes (EPC024-22), which can also ask for SEPA Instant; the payer's
   bank decides how the transfer is made
 - Hands a reviewed request to a banking app as a [payto link](docs/payto-handoff.md), with the
-  values to copy when no app takes it
+  values to copy when no app takes it. Banking apps can accept these links by following the
+  [guide for banking apps](docs/for-banking-apps.md)
 - Includes a reference wallet for iOS and Android in seven languages, built on the codec
 - Never touches money: no backend, no accounts, no custody. The payer authorises every payment in
   their own banking app
