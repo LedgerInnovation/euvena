@@ -300,8 +300,10 @@ Store builds are made with EAS from `eas.json`:
 encryption, a privacy manifest that declares no tracking and no collected data plus the
 required-reason APIs the dependencies use, and the camera prompt in the seven wallet languages
 (`locales/`). `expo-system-ui` lets the Android build follow the light or dark appearance. Android
-targets API 36, the React Native 0.86 default. Listings, review notes, the privacy policy text and
-the questionnaire answers are in [`store/`](store/).
+targets API 36, the React Native 0.86 default. The privacy policy is published at
+https://ledgerinnovation.com/euvena/privacy/. Store listings, review notes and the questionnaire
+answers are kept with the publisher, outside the repository; `store/` and `store.config.json`
+(the EAS Metadata config for the App Store) are ignored so they can sit in the app folder.
 
 EAS installs the workspace but builds nothing in it, so the `eas-build-post-install` script in
 `package.json` builds `@euvena/qr` before the bundle is made, as the second command under
@@ -326,7 +328,6 @@ pnpm --filter @euvena/wallet build   # bundles the JS, no native toolchain requi
 | `App.tsx` | Root component, loads the payee settings, opens incoming links, holds the tab bar and switches between the screens |
 | `eas.json` | EAS build profiles: simulator, preview and production |
 | `locales/` | The camera prompt in each wallet language, for the iOS Info.plist |
-| `store/` | Store listings, review notes, privacy policy text and questionnaire answers |
 | `plugins/` | Config plugin that keeps a restored Android activity from reopening its launch link |
 | `src/epc/` | Form state to an EPC069-12 payload or an EN 18184 URL (`poi.ts`), the link form of a request, plus the display formatting |
 | `src/i18n/` | The typed dictionary shape, one file per language, language resolution and number and date formatting |
