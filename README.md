@@ -43,6 +43,9 @@ alias directory reference implementation, settlement connectors, reference mobil
   Initiation of a SEPA Credit Transfer" (European Payments Council, March 2024)
 - EPC024-22 v2.10, "Standardisation of QR-codes for Mobile Initiated SEPA (Instant) Credit
   Transfers" (European Payments Council, June 2024), the basis of EN 18184:2025
+- RFC 8905, "The 'payto' URI Scheme for Payments", through the
+  [payto handoff profile](docs/payto-handoff.md): how a SEPA credit transfer request travels from
+  one app to a banking app as a link
 
 Both documents are freely available from the [EPC document library](https://www.europeanpaymentscouncil.eu/document-library).
 

@@ -92,7 +92,8 @@ export class EpcQrError extends Error {
   }
 }
 
-function collectIssues(data: EpcQrData): EpcQrIssue[] {
+/** @internal Shared with the payto module, which checks the same elements. */
+export function collectIssues(data: EpcQrData): EpcQrIssue[] {
   const issues: EpcQrIssue[] = [];
 
   // Control characters would shift the meaning of every following element,

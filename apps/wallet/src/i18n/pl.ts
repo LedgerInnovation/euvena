@@ -203,6 +203,8 @@ export const pl: Dictionary = {
     openBankingApp: "Otwórz aplikację bankową",
     noHandler:
       "Żadna zainstalowana aplikacja nie przyjęła tego żądania. Banki nie uzgodniły jeszcze wspólnego formatu linku, więc skopiuj dane do aplikacji bankowej.",
+    noLink:
+      "Tego żądania nie można przekazać jako linku: rachunek odbiorcy jest poza EOG, a kod nie zawiera kodu BIC, którego wymaga przelew na ten rachunek. Skopiuj dane do aplikacji bankowej, która może poprosić o BIC banku odbiorcy.",
     copyInto: "Skopiuj do formularza przelewu",
     handoffHint:
       "Link to adres payto zbudowany z kodu. Jeśli żadna aplikacja na tym urządzeniu nie odpowie, Twoja aplikacja bankowa może i tak skanować te kody bezpośrednio.",

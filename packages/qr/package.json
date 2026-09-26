@@ -11,6 +11,8 @@
     "epc069-12",
     "epc024-22",
     "en18184",
+    "payto",
+    "rfc8905",
     "payments",
     "sct",
     "iban"

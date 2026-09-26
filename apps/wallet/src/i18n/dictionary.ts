@@ -258,6 +258,8 @@ export interface Dictionary {
     referenceWarning: string;
     openBankingApp: string;
     noHandler: string;
+    /** In place of the launch action, when the request cannot be written as a payto link. */
+    noLink: string;
     copyInto: string;
     handoffHint: string;
     nothingRead: string;

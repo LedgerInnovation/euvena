@@ -203,6 +203,8 @@ export const es: Dictionary = {
     openBankingApp: "Abrir tu aplicación bancaria",
     noHandler:
       "Ninguna aplicación instalada aceptó esta solicitud. Los bancos aún no han acordado un formato de enlace común, así que copia los datos en tu aplicación bancaria.",
+    noLink:
+      "Esta solicitud no se puede pasar como enlace: la cuenta del beneficiario está fuera del EEE y el código no incluye el BIC que exige una transferencia a esa cuenta. Copia los datos en tu aplicación bancaria, que puede pedirte el BIC del banco del beneficiario.",
     copyInto: "Copiar en un formulario de transferencia",
     handoffHint:
       "El enlace es una dirección payto construida a partir del código. Si ninguna aplicación de este dispositivo responde, puede que tu aplicación bancaria escanee estos códigos directamente.",

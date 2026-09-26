@@ -203,6 +203,8 @@ export const it: Dictionary = {
     openBankingApp: "Apri la tua app bancaria",
     noHandler:
       "Nessuna app installata ha accettato questa richiesta. Le banche non hanno ancora concordato un formato di link comune, quindi copia i dati nella tua app bancaria.",
+    noLink:
+      "Questa richiesta non può essere passata come link: il conto del beneficiario è fuori dal SEE e il codice non contiene il BIC che un bonifico verso quel conto richiede. Copia i dati nella tua app bancaria, che potrebbe chiederti il BIC della banca del beneficiario.",
     copyInto: "Copia in un modulo di bonifico",
     handoffHint:
       "Il link è un indirizzo payto costruito dal codice. Se nessuna app su questo dispositivo risponde, la tua app bancaria potrebbe comunque leggere questi codici direttamente.",

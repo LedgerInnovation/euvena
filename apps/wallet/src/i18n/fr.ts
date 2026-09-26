@@ -203,6 +203,8 @@ export const fr: Dictionary = {
     openBankingApp: "Ouvrir votre application bancaire",
     noHandler:
       "Aucune application installée n'a pris cette demande. Les banques ne se sont pas encore accordées sur un format de lien commun ; copiez plutôt les informations dans votre application bancaire.",
+    noLink:
+      "Cette demande ne peut pas être transmise sous forme de lien : le compte du bénéficiaire est hors de l'EEE et le code ne contient pas le BIC qu'un virement vers ce compte exige. Copiez les informations dans votre application bancaire, qui peut vous demander le BIC de la banque du bénéficiaire.",
     copyInto: "Copier dans un formulaire de virement",
     handoffHint:
       "Le lien est une adresse payto construite à partir du code. Si aucune application de cet appareil n'y répond, votre application bancaire peut peut-être scanner ces codes directement.",

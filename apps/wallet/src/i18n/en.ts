@@ -203,6 +203,8 @@ export const en: Dictionary = {
     openBankingApp: "Open your banking app",
     noHandler:
       "No installed app took this request. Banks have not agreed on a common link format yet, so copy the details into your banking app instead.",
+    noLink:
+      "This request cannot be passed on as a link: the payee's account is outside the EEA and the code does not carry the BIC a transfer there needs. Copy the details into your banking app, which may ask for the BIC of the payee's bank.",
     copyInto: "Copy into a transfer form",
     handoffHint:
       "The link is a payto address built from the code. If no app on this device answers it, your banking app may still scan these codes directly.",
