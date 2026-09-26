@@ -324,7 +324,9 @@ function HandoffActions({ data, instant }: { data: TransferDetails; instant: boo
           transfer, so the payee's ask for an instant one is said out loud. */}
       {instant ? <Hint>{strings.scan.instantAsked}</Hint> : null}
       {/* A request the profile cannot carry leaves only the copy fields. */}
-      {uri === null ? null : (
+      {uri === null ? (
+        <Hint>{strings.scan.noLink}</Hint>
+      ) : (
         <Button
           label={strings.scan.openBankingApp}
           busy={opening}
@@ -336,7 +338,7 @@ function HandoffActions({ data, instant }: { data: TransferDetails; instant: boo
       {noHandler ? <Problem>{strings.scan.noHandler}</Problem> : null}
       <SectionLabel>{strings.scan.copyInto}</SectionLabel>
       <Rows rows={rest.map(row)} />
-      <Hint>{strings.scan.handoffHint}</Hint>
+      {uri === null ? null : <Hint>{strings.scan.handoffHint}</Hint>}
     </Card>
   );
 }

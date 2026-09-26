@@ -1,17 +1,17 @@
 /**
- * The payto handoff: the URI the "Open your banking app" action fires, and
+ * The payto handoff: the URI the "Open your banking app" action fires and
  * the payto links a payer pastes or opens.
  *
  * Both directions follow the Euvena payto handoff profile
  * (docs/payto-handoff.md), implemented by the codec's encodePaytoUri and
  * decodePaytoUri. There is no EU-wide scheme for opening a banking app with a
  * credit transfer prefilled; apps that accept payto URIs, such as the GNU
- * Taler wallet, can take this one, and everything it carries comes from the
+ * Taler wallet, can take this one. Everything it carries comes from the
  * decoded payload, so the handoff cannot say anything the review did not
  * show.
  *
  * A structured creditor reference has no payto option and is left out. It
- * stays in the review and in the copy fields, and the screen says so above
+ * stays in the review and in the copy fields. The screen says so above
  * the handoff action. A purpose code likewise stays visible in the review
  * only.
  */
@@ -42,7 +42,7 @@ export interface TransferDetails {
 /**
  * The payto URI for a reviewed request, or null when the profile cannot
  * carry it. That happens for an EN 18184 code to an account in a non-EEA
- * SEPA country: EPC024-22 has no BIC element, and a transfer there needs
+ * SEPA country: EPC024-22 has no BIC element but a transfer there needs
  * one, so the payer copies the fields instead.
  */
 export function buildPaytoUri(data: TransferDetails): string | null {

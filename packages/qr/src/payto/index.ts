@@ -19,8 +19,8 @@
  * unstructured remittance information and `instruction` the end-to-end
  * identifier, so either would silently downgrade it and the creditor's
  * reconciliation could miss the payment. The encoder refuses a reference
- * unless the caller says to leave it out, and the caller then has to tell
- * the payer.
+ * unless the caller says to leave it out. That caller then has to show the
+ * payer the reference.
  */
 
 import { collectIssues, type EpcQrData, type EpcQrIssue } from "../epc069/index.js";
@@ -60,7 +60,7 @@ export interface EncodePaytoOptions {
    * Leave a structured reference out instead of refusing it. A caller that
    * sets this shows the payer the reference to enter by hand.
    */
-  omitReference?: boolean;
+  omitReference?: boolean | undefined;
 }
 
 /**
@@ -129,7 +129,9 @@ export function encodePaytoUri(input: EncodePaytoInput, options: EncodePaytoOpti
   let amount: string | undefined;
   if (input.amount !== undefined) {
     try {
-      amount = formatAmount(input.amount);
+      // Leading zeros go, as decodePaytoUri drops them, so a URI reads back
+      // the amount it was written with.
+      amount = formatAmount(input.amount).replace(/^0+(?=\d)/, "");
     } catch {
       issues.push({ element: "amount", message: "invalid amount" });
     }
@@ -139,9 +141,11 @@ export function encodePaytoUri(input: EncodePaytoInput, options: EncodePaytoOpti
     name: input.name,
     iban: normalizeIban(input.iban),
   };
-  if (input.bic !== undefined) transfer.bic = input.bic.toUpperCase();
+  // An empty BIC or text is absent, as in an EPC069-12 payload. Written out,
+  // it would give the URI an empty path segment or an empty message.
+  if (input.bic !== undefined && input.bic !== "") transfer.bic = input.bic.toUpperCase();
   if (amount !== undefined) transfer.amount = amount;
-  if (input.text !== undefined) transfer.text = input.text;
+  if (input.text !== undefined && input.text !== "") transfer.text = input.text;
 
   issues.push(...elementIssues(transfer));
   if (issues.length > 0) throw new PaytoError("invalid", "invalid payto transfer", issues);
@@ -175,8 +179,8 @@ const READ_OPTIONS = new Set(["amount", "receiver-name", "message"]);
 
 /**
  * Options that describe the parties rather than the payment: the payer's own
- * name, and the creditor address the GNU Taler wallets add, which neither a
- * code nor a transfer form takes and which does not change where the money
+ * name and the creditor address the GNU Taler wallets add. Neither a code nor
+ * a transfer form takes the address. It does not change where the money
  * goes.
  */
 const IGNORED_OPTIONS = new Set(["sender-name", "receiver-postal-code", "receiver-town"]);
@@ -189,12 +193,12 @@ const IGNORED_OPTIONS = new Set(["sender-name", "receiver-postal-code", "receive
  * in IGNORED_OPTIONS:
  * - `receiver-name` is the beneficiary name, which is required
  * - `amount` must be in euro, at most once (RFC 8905 section 5). Digits past
- *   the cent must be zeros. Commas are refused although the RFC says to
- *   ignore them: a producer writing a decimal comma would otherwise have
- *   "12,50" paid as 1250
+ *   the cent must be zeros. Commas are refused, a deliberate deviation from
+ *   the RFC, which says they MUST be ignored: a producer writing a decimal
+ *   comma would otherwise have "12,50" paid as 1250
  * - `message` is the unstructured remittance text (section 7.3)
  * - `instruction` is the end-to-end identifier, which the profile cannot
- *   carry on. Section 6 says to refuse rather than lose it
+ *   carry on. Section 5 says it SHOULD NOT be lost, so it is refused
  * - anything else is refused, as is any option given twice. That includes
  *   `ch-qrr` (a Swiss structured reference) and a `bic` option that would
  *   compete with the path
@@ -206,10 +210,10 @@ const IGNORED_OPTIONS = new Set(["sender-name", "receiver-postal-code", "receive
  * the GNU Taler wallet reads it and as the PHP and Python query builders that
  * invoicing backends use write one. A literal plus has to arrive as "%2B",
  * which encodePaytoUri emits. One trailing slash after the account is
- * accepted, since Taler exchanges publish their accounts that way.
+ * accepted, since it does not change the account.
  *
- * Error messages are fixed sentences that never repeat the input; the
- * messages of `issues` may quote the value that failed.
+ * Error messages, those of `issues` included, are fixed sentences that
+ * never repeat the input.
  *
  * The URI has no size limit of its own. A name and a text that each pass can
  * still overrun the 331 bytes of an EPC069-12 payload together, which
@@ -297,7 +301,11 @@ function malformed(): PaytoError {
   return new PaytoError("malformed", "the payto URI is malformed");
 }
 
-/** The EPC069-12 element checks, on the elements a payto URI carries. */
+/**
+ * The EPC069-12 element checks, on the elements a payto URI carries. The
+ * messages are fixed per element, since the codec's own can quote the value
+ * and a URI is someone else's writing.
+ */
 function elementIssues(transfer: PaytoTransfer): EpcQrIssue[] {
   const data: EpcQrData = {
     version: "002",
@@ -308,7 +316,11 @@ function elementIssues(transfer: PaytoTransfer): EpcQrIssue[] {
   if (transfer.bic !== undefined) data.bic = transfer.bic;
   if (transfer.amount !== undefined) data.amount = transfer.amount;
   if (transfer.text !== undefined) data.text = transfer.text;
-  return collectIssues(data);
+  const elements = new Set(collectIssues(data).map((issue) => issue.element));
+  return [...elements].map((element) => ({
+    element,
+    message: `${element} fails the EPC069-12 checks`,
+  }));
 }
 
 /**

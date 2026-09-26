@@ -87,7 +87,7 @@ describe("buildPaytoUri", () => {
     expect(uri).toContain("message=Rechnung%2044%20%26%2045%20%3D%20bezahlt");
   });
   it("offers no URI for a request the profile cannot carry", () => {
-    // An EN 18184 code has no BIC element, and a transfer to a non-EEA SEPA
+    // An EN 18184 code has no BIC element but a transfer to a non-EEA SEPA
     // account needs one, so the payer copies the fields instead.
     expect(buildPaytoUri({ name: "Alice", iban: "CH9300762011623852957", amount: "5" })).toBeNull();
   });

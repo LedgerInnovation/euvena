@@ -87,6 +87,12 @@ describe("encodePaytoUri", () => {
     // A non-EEA SEPA account needs its BIC, as in a code.
     expect(failed({ name: "A", iban: "CH9300762011623852957" })).toEqual(["bic"]);
   });
+
+  it("writes an empty BIC or text as absent and an amount without leading zeros", () => {
+    const uri = encodePaytoUri({ name: "A", iban: IBAN, bic: "", text: "", amount: "0012.50" });
+    expect(uri).toBe(`payto://iban/${IBAN}?amount=EUR:12.50&receiver-name=A`);
+    expect(decodePaytoUri(uri)).toEqual({ name: "A", iban: IBAN, amount: "12.50" });
+  });
 });
 
 describe("decodePaytoUri", () => {
@@ -158,15 +164,27 @@ describe("decodePaytoUri", () => {
     for (const [uri, code] of cases) expect([uri, codeOf(uri)]).toEqual([uri, code]);
   });
 
-  it("never repeats the input in its message", () => {
-    try {
-      decodePaytoUri(`payto://iban/${IBAN}?receiver-name=Evil&instruction=secret`);
-    } catch (error) {
-      expect((error as Error).message).not.toContain("secret");
+  it("never repeats the input, in its message or its issues", () => {
+    for (const uri of [
+      `payto://iban/${IBAN}?receiver-name=Evil&instruction=secret`,
+      `payto://iban/SECRETBIC/DE33100205000001194799?receiver-name=secret%0A&message=secret%E2%80%AE`,
+    ]) {
+      let caught: PaytoError | undefined;
+      try {
+        decodePaytoUri(uri);
+      } catch (error) {
+        caught = error as PaytoError;
+      }
+      expect(caught).toBeInstanceOf(PaytoError);
+      const text = [caught?.message, ...(caught?.issues ?? []).map((issue) => issue.message)].join(
+        " ",
+      );
+      expect(text.toLowerCase()).not.toContain("secret");
+      expect(text).not.toContain("DE33");
     }
   });
 
-  it("ignores the payer name and the creditor address, and one trailing slash", () => {
+  it("ignores the payer name, the creditor address and one trailing slash", () => {
     expect(
       decodePaytoUri(
         `payto://iban/${IBAN}/?${NAME}&sender-name=Bob&receiver-postal-code=1&receiver-town=X`,

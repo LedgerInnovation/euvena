@@ -8,13 +8,13 @@ when the payer's app can scan it, but the payer is often holding the request on 
 
 RFC 8905 defines the `payto` URI, an open and registered way to name a payment target. This
 profile says how a SEPA credit transfer request, the one an EPC069-12 code carries, is written as a
-payto URI, how such a URI is read, and what a banking app does to take part. Any app can emit
+payto URI. It also says how such a URI is read and what a banking app does to take part. Any app can emit
 these URIs today. A banking app that registers for them lets any request, from a code, a link or
 an invoice, open the app with the transfer filled in.
 
 The profile is implemented by `encodePaytoUri` and `decodePaytoUri` in
-[`@euvena/qr`](../packages/qr). The Euvena wallet emits the URIs, and the GNU Taler wallets read
-payto URIs, so there are two independent implementations.
+[`@euvena/qr`](../packages/qr), which the Euvena wallet uses to emit and read the URIs. The GNU
+Taler wallets read payto URIs under RFC 8905 and can take the ones this profile writes.
 
 The key words MUST, MUST NOT, SHOULD and MAY are used as in RFC 2119.
 
@@ -64,8 +64,9 @@ incoming payment to an invoice. No payto option carries it:
 
 - `message` is the unstructured remittance information. A reference written there reaches the
   creditor as free text, which automatic reconciliation may not read.
-- `instruction` is the SEPA end-to-end identifier (section 7.3), a different field that the payer's
-  bank passes along for the payer's own tracking.
+- `instruction` maps to the SEPA end-to-end identifier (section 7.3), a reference the payer sets
+  for the transfer. A creditor reconciles on the remittance information, not on that identifier,
+  and EPC069-12 has no element for it.
 
 Writing the reference into either would downgrade it without anyone noticing. So a producer MUST
 NOT write a structured reference into `message` or `instruction`. When a request carries one, the
@@ -74,12 +75,13 @@ reference to enter by hand, before the banking app opens. `encodePaytoUri` refus
 unless the caller passes `omitReference: true`, which is the second choice.
 
 **Proposal.** A `creditor-reference` option for the `iban` target type, carrying the structured
-remittance information of a SEPA credit transfer: at most 35 characters, and when it begins with
-`RF`, a valid ISO 11649 reference. It is exclusive with `message`, as the two are in EPC069-12 and
-in the SEPA rulebook. RFC 8905 section 10 places the target types in the "Payto Payment Target
-Types" registry that GANA operates, with First Come First Served registration, and each entry's
-references define the options of its type. The proposal is to add this profile to the references
-of the `iban` entry.
+remittance information of a SEPA credit transfer. It holds at most 35 characters and, when it
+begins with `RF`, a valid ISO 11649 reference. It is exclusive with `message`, as the two are in
+EPC069-12 and in the SEPA rulebook. RFC 8905 section 10 places the target types in the "Payto
+Payment Target Types" registry that GANA operates, where each entry's references describe the
+options of its type. Section 7 sets First Come First Served registration for new entries; the
+`iban` entry itself is defined by RFC 8905. The proposal is therefore a request to the registry
+and the RFC's authors to add this profile to the references of the `iban` entry.
 
 Until that happens, producers MUST NOT emit `creditor-reference`. Readers under this profile
 refuse any option they do not know, so a URI that carries it is refused rather than paid without
@@ -87,14 +89,17 @@ it.
 
 ## Writing a URI
 
-- The path is the IBAN, or the BIC and the IBAN, each in upper case.
+- The scheme and the target type MUST be written in lower case, `payto://iban/`. Readers compare
+  them without case, but Android matches an intent filter's scheme and host exactly and some
+  parsers check the prefix as written.
+- The path is the IBAN, or the BIC followed by the IBAN, each in upper case.
 - `amount` comes first when present, then `receiver-name`, then `message`. Readers MUST accept any
   order (RFC 8905 section 5).
 - Values are UTF-8 and percent-encoded as in RFC 3986. The colon in `EUR:<value>` stays literal, as
   in the RFC's examples. A plus sign MUST be written as `%2B`, because widely used query parsers
   read a raw `+` as a space.
-- The amount uses a point as the decimal separator and no grouping. RFC 8905 lets readers ignore
-  commas, so a comma would change the amount.
+- The amount uses a point as the decimal separator, no grouping and no leading zeros. RFC 8905
+  says readers MUST ignore commas, so a comma would change the amount.
 - `instruction`, `sender-name` and any option not in this profile are not written.
 
 ## Reading a URI
@@ -104,37 +109,40 @@ A reader MUST refuse the whole URI, rather than use part of it, when:
 - the scheme is not `payto` or the target type is not `iban`, compared without case, or the
   authority carries userinfo or a port
 - the URI has a fragment, or a path other than one or two segments of letters and digits (one
-  trailing slash is accepted, as Taler exchanges publish their accounts that way)
+  trailing slash is accepted, since it does not change the account)
 - a percent escape is truncated or not valid UTF-8
 - an option has no name or no `=`, or is given twice
-- an option is `instruction`: the end-to-end identifier cannot be passed on, and RFC 8905 section 6
-  says to refuse rather than lose information
+- an option is `instruction`: the end-to-end identifier cannot be passed on. RFC 8905 section 5
+  says an instruction SHOULD NOT be lost
 - an option is not in this profile. That includes `ch-qrr` and a `bic` option that would compete
   with the path
 - `receiver-name` is missing or empty
-- `amount` is not `EUR:` followed by digits with an optional point, or has digits past the cent
-  that are not zeros, or has a comma, or is outside the SEPA range
+- `amount` is not `EUR:` followed by digits with an optional point, has digits past the cent
+  that are not zeros, has a comma or is outside the SEPA range. Refusing the comma is a deliberate
+  deviation from RFC 8905, which says commas MUST be ignored: read that way, a decimal comma in
+  "12,50" would have 1250 paid
 - any element fails the checks in [Element mapping](#element-mapping)
 
-Three options describe the parties rather than the payment and are ignored: `sender-name`, because
-the payer is the one reading, and `receiver-postal-code` and `receiver-town`, which the GNU Taler
-wallets add and which do not change where the money goes.
+Three options describe the parties rather than the payment and are ignored. `sender-name` is
+ignored because the payer is the one reading. `receiver-postal-code` and `receiver-town` are the
+creditor address the GNU Taler wallets add, which does not change where the money goes.
 
 Option names are matched exactly. RFC 5234 makes the quoted names case-insensitive, but the GNU
-Taler wallet matches them exactly, and two readers must never pay different amounts for one URI.
-A raw `+` in a value is read as a space.
+Taler wallet matches them exactly. Two readers must never pay different amounts for one URI. A raw
+`+` in a value is read as a space.
 
-Error messages MUST NOT repeat the input. A URI is someone else's writing.
+Error messages MUST NOT repeat the input, since a URI is someone else's writing. In
+`@euvena/qr` that holds for the message of a `PaytoError` and for those of its `issues`.
 
 ## What a banking app does with one
 
 A banking app that accepts these URIs:
 
 1. MUST show the beneficiary name, the full IBAN, the amount and the message before the payer
-   authorises anything, and MUST NOT authorise a transfer without the payer's action.
+   authorises anything. It MUST NOT authorise a transfer without the payer's action.
 2. MUST treat every value as untrusted input and run its usual checks on it, including
    Verification of Payee for a euro transfer.
-3. SHOULD let the payer change the amount when the URI has none, and MUST NOT take the payer's
+3. SHOULD let the payer enter the amount when the URI has none. It MUST NOT take the payer's
    account or name from the URI.
 4. SHOULD tell the payer, when the transfer form has a structured reference field, that a biller's
    reference may still need to be entered.

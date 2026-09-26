@@ -203,6 +203,8 @@ export const de: Dictionary = {
     openBankingApp: "Banking-App öffnen",
     noHandler:
       "Keine installierte App hat diese Anforderung angenommen. Die Banken haben sich noch nicht auf ein gemeinsames Linkformat geeinigt; kopiere die Angaben stattdessen in deine Banking-App.",
+    noLink:
+      "Diese Anforderung kann nicht als Link weitergegeben werden: Das Konto des Empfängers liegt außerhalb des EWR, und der Code enthält nicht die BIC, die eine Überweisung dorthin braucht. Kopiere die Angaben in deine Banking-App; sie fragt eventuell nach der BIC der Empfängerbank.",
     copyInto: "In ein Überweisungsformular kopieren",
     handoffHint:
       "Der Link ist eine aus dem Code gebildete payto-Adresse. Wenn keine App auf diesem Gerät darauf antwortet, kann deine Banking-App diese Codes vielleicht direkt scannen.",

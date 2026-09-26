@@ -203,6 +203,8 @@ export const nl: Dictionary = {
     openBankingApp: "Je bankapp openen",
     noHandler:
       "Geen geïnstalleerde app heeft dit verzoek aangenomen. Banken hebben nog geen gezamenlijk linkformaat afgesproken, kopieer de gegevens dus in je bankapp.",
+    noLink:
+      "Dit verzoek kan niet als link worden doorgegeven: de rekening van de begunstigde ligt buiten de EER en de code bevat niet de BIC die een overschrijving daarheen nodig heeft. Kopieer de gegevens in je bankapp; die kan om de BIC van de bank van de begunstigde vragen.",
     copyInto: "Kopiëren naar een overschrijvingsformulier",
     handoffHint:
       "De link is een payto-adres dat uit de code is opgebouwd. Als geen app op dit apparaat erop reageert, kan je bankapp deze codes misschien rechtstreeks scannen.",
