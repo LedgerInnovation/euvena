@@ -65,8 +65,8 @@ incoming payment to an invoice. No payto option carries it:
 - `message` is the unstructured remittance information. A reference written there reaches the
   creditor as free text, which automatic reconciliation may not read.
 - `instruction` maps to the SEPA end-to-end identifier (section 7.3), a reference the payer sets
-  for the transfer. A creditor reconciles on the remittance information, not on that identifier,
-  and EPC069-12 has no element for it.
+  for the transfer. A creditor reconciles on the remittance information, not on that identifier.
+  EPC069-12 has no element for it either.
 
 Writing the reference into either would downgrade it without anyone noticing. So a producer MUST
 NOT write a structured reference into `message` or `instruction`. When a request carries one, the
