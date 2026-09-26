@@ -48,7 +48,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@euvena/qr": "workspace:^0.1.1"
+    "@euvena/qr": "workspace:^"
   },
   "devDependencies": {
     "tsup": "^8.5.1",
