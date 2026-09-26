@@ -94,6 +94,30 @@ profile v1**, an open naming proposal. Every encode and decode function accepts 
 `keys` mapping to interoperate with issuers that made different choices, and
 `decodeMsctQr` always returns the raw `URLSearchParams`.
 
+## payto handoff (RFC 8905)
+
+A `payto://iban` URI carries the same SEPA credit transfer request as an EPC069-12 code, as a
+link one app can hand to another on the same phone. The mapping, the rules for reading and what a
+banking app registers to receive them are in the
+[payto handoff profile](https://github.com/LedgerInnovation/euvena/blob/main/docs/payto-handoff.md).
+
+```ts
+import { decodeEpcQr, decodePaytoUri, encodeEpcQr, encodePaytoUri } from "@euvena/qr";
+
+// A scanned code as a handoff. No payto option carries a structured
+// reference, so it is refused unless the caller leaves it out and shows it.
+const { data } = decodeEpcQr(scannedText);
+const uri = encodePaytoUri(data, { omitReference: true });
+// payto://iban/DE33100205000001194700?amount=EUR:13.05&receiver-name=...
+
+// An incoming URI, in a banking app. Throws PaytoError with a `code`.
+const transfer = decodePaytoUri(uri);
+const payload = encodeEpcQr(transfer); // the same request as a code
+```
+
+Both directions hold every element to the EPC069-12 checks. `isPaytoUri` tells a payto URI
+from other input.
+
 ## Utilities
 
 `isValidIban`, `normalizeIban`, `IBAN_LENGTHS`, `isValidRfReference`,
@@ -105,6 +129,7 @@ profile v1**, an open naming proposal. Every encode and decode function accepts 
   Initiation of a SEPA Credit Transfer (EPC, 19 March 2024)
 - EPC024-22 v2.10, Standardisation of QR-codes for Mobile Initiated SEPA (Instant)
   Credit Transfers (EPC, 17 June 2024)
+- RFC 8905, The 'payto' URI Scheme for Payments (October 2020)
 
 Both are freely available from the
 [EPC document library](https://www.europeanpaymentscouncil.eu/document-library).

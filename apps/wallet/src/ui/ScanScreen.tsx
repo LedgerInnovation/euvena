@@ -257,12 +257,14 @@ function HandoffActions({ data, instant }: { data: TransferDetails; instant: boo
     return () => clearTimeout(timer);
   }, []);
 
+  const uri = buildPaytoUri(data);
+
   const onOpen = async () => {
-    if (!armed) return;
+    if (!armed || uri === null) return;
     setOpening(true);
     setNoHandler(false);
     try {
-      await Linking.openURL(buildPaytoUri(data));
+      await Linking.openURL(uri);
     } catch {
       // Rejection means no installed app handles payto, on either platform.
       setNoHandler(true);
@@ -321,13 +323,16 @@ function HandoffActions({ data, instant }: { data: TransferDetails; instant: boo
       {/* Neither the payto URI nor a transfer form field carries the kind of
           transfer, so the payee's ask for an instant one is said out loud. */}
       {instant ? <Hint>{strings.scan.instantAsked}</Hint> : null}
-      <Button
-        label={strings.scan.openBankingApp}
-        busy={opening}
-        onPress={() => {
-          void onOpen();
-        }}
-      />
+      {/* A request the profile cannot carry leaves only the copy fields. */}
+      {uri === null ? null : (
+        <Button
+          label={strings.scan.openBankingApp}
+          busy={opening}
+          onPress={() => {
+            void onOpen();
+          }}
+        />
+      )}
       {noHandler ? <Problem>{strings.scan.noHandler}</Problem> : null}
       <SectionLabel>{strings.scan.copyInto}</SectionLabel>
       <Rows rows={rest.map(row)} />

@@ -43,3 +43,14 @@ export {
 } from "./shared/iban.js";
 export { formatAmount, isValidAmountString } from "./shared/amount.js";
 export { byteLength, hasControlChars, isLatin1, type EpcCharset } from "./shared/text.js";
+
+export {
+  PaytoError,
+  decodePaytoUri,
+  encodePaytoUri,
+  isPaytoUri,
+  type EncodePaytoInput,
+  type EncodePaytoOptions,
+  type PaytoErrorCode,
+  type PaytoTransfer,
+} from "./payto/index.js";

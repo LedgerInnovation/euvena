@@ -13,11 +13,11 @@
  * and a scanned code is someone else's writing, so they are never shown.
  */
 
-import { EpcQrError, decodeEpcQr, encodeEpcQr } from "@euvena/qr";
+import { EpcQrError, decodeEpcQr, encodeEpcQr, isPaytoUri } from "@euvena/qr";
 
 import { elementKeys, sameRejection, type Rejection } from "../i18n";
 import { REQUEST_LINK_SCHEME, parseRequestLink } from "./link";
-import { PAYTO_SCHEME, parsePaytoUri } from "./payto";
+import { parsePaytoUri } from "./payto";
 import { readPoiRequest } from "./poi";
 import { type PaymentCode } from "./request";
 
@@ -36,9 +36,6 @@ const SCHEME_SHAPED = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
 
 /** How a URL in the wallet's own scheme begins. */
 const OWN_SCHEME_PREFIX = `${REQUEST_LINK_SCHEME}:`;
-
-/** How a payto URI begins, compared without case. */
-const PAYTO_PREFIX = `${PAYTO_SCHEME}://`;
 
 /**
  * How an EN 18184 code begins, compared without case: EPC024-22 writes its
@@ -75,7 +72,7 @@ export function readPaymentRequest(input: string): ReadRequestResult {
 
   const trimmed = input.trim();
   if (trimmed === "") return { ok: false, reason: { code: "empty" } };
-  if (trimmed.slice(0, PAYTO_PREFIX.length).toLowerCase() === PAYTO_PREFIX) {
+  if (isPaytoUri(trimmed)) {
     return readPaytoRequest(trimmed);
   }
   if (trimmed.slice(0, POI_PREFIX.length).toLowerCase() === POI_PREFIX) {
