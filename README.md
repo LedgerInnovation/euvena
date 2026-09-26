@@ -8,7 +8,7 @@
 
 <p align="center">
   <img src="assets/screenshots/1-request.png" alt="The wallet showing an EPC QR code for a payment request" width="220">
-  <img src="assets/screenshots/2-review.png" alt="The wallet reviewing a scanned request before handing it to a banking app" width="220">
+  <img src="assets/screenshots/2-review.png" alt="The wallet reviewing a request it read before handing it to a banking app" width="220">
   <img src="assets/screenshots/3-history.png" alt="The wallet's history of kept requests" width="220">
 </p>
 
@@ -32,7 +32,7 @@ Euvena was previously named EUPI. Releases up to September 2026 were published o
   bank decides how the transfer is made
 - Hands a reviewed request to a banking app as a [payto link](docs/payto-handoff.md), with the
   values to copy when no app takes it
-- Ships a reference wallet for iOS and Android in seven languages, built on the libraries
+- Includes a reference wallet for iOS and Android in seven languages, built on the codec
 - Never touches money: no backend, no accounts, no custody. The payer authorises every payment in
   their own banking app
 
@@ -64,11 +64,12 @@ from a clone: `pnpm install`, `pnpm --filter @euvena/qr build`, then
 |---|---|---|
 | [`@euvena/qr`](packages/qr) | alpha | Encode and decode European payment QR codes: EPC069-12 (the "EPC QR" / GiroCode scanned by many European banking apps today) and EPC024-22 (the MSCT QR standard behind EN 18184:2025, covering merchant-presented and payer-presented codes for instant payments) |
 | [`@euvena/taler`](packages/taler) | alpha | Top up GNU Taler reserves with standard EPC QR codes: any European banking app becomes a Taler on-ramp, no payer-side software needed |
-| [`apps/wallet`](apps/wallet) | beta | Reference wallet for iOS and Android: request with a code or a link, scan and review a request, hand it to the payer's banking app |
+| [`apps/wallet`](apps/wallet) | alpha | Reference wallet for iOS and Android: request with a code or a link, scan and review a request, hand it to the payer's banking app |
 
-Planned: Verification of Payee client (EPC VoP scheme), SEPA Request-to-Pay (EPC133-22), an
-alias directory reference implementation, settlement connectors, Kotlin and Swift ports of the
-codecs and a digital euro simulator built from the public rulebook.
+Planned, with more in the [open issues](https://github.com/LedgerInnovation/euvena/issues):
+Verification of Payee client (EPC VoP scheme), SEPA Request-to-Pay (EPC133-22), an alias directory
+reference implementation, Kotlin and Swift ports of the codecs, a digital euro simulator built
+from the public rulebook and settlement connectors.
 
 ## Design principles
 
