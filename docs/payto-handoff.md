@@ -147,7 +147,8 @@ A banking app that accepts these URIs:
 4. SHOULD tell the payer, when the transfer form has a structured reference field, that a biller's
    reference may still need to be entered.
 
-To be offered these URIs, the app registers the scheme.
+To be offered these URIs, the app registers the scheme. The
+[guide for banking apps](for-banking-apps.md) walks through the steps with test links.
 
 Android, in the activity that opens the transfer form:
 
