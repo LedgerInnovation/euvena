@@ -63,8 +63,9 @@ iOS, in `Info.plist`:
 </array>
 ```
 
-Then read the link in the handler your app already has for incoming links (`onNewIntent` or the
-launch intent on Android, `application(_:open:options:)` or `onOpenURL` on iOS).
+Then read the link in the handler your app already has for incoming links. On Android that is
+`onNewIntent` or the launch intent. On iOS it is `scene(_:openURLContexts:)` in a scene delegate,
+`application(_:open:options:)` without one or `onOpenURL` in SwiftUI.
 
 ## Step 2: read the link
 
@@ -77,7 +78,9 @@ matter most:
   past the cent must be zeros
 - `receiver-name` is present and not blank
 - no control characters, line breaks or bidirectional formatting characters in any value
-- an unknown option, a repeated option or an `instruction` refuses the link
+- an unknown option, a repeated option or an `instruction` refuses the link. The exceptions are
+  `sender-name`, `receiver-postal-code` and `receiver-town`, which describe the parties rather
+  than the payment and are ignored. GNU Taler wallets add the last two
 
 In JavaScript or TypeScript, including React Native, `@euvena/qr` does all of this:
 
@@ -102,8 +105,8 @@ cases.
 
 - Open the ordinary transfer form with the values filled in. Show the beneficiary name, the full
   IBAN, the amount and the message before the payer confirms.
-- Never authorise, or skip a step of the usual authorisation, because a transfer came from a
-  link. Any app on the phone can open one.
+- Authorise exactly as for a transfer the payer typed in, with no step skipped. Any app on the
+  phone can open a link.
 - Run your usual checks on the values, including Verification of Payee.
 - Let the payer choose the account to pay from. The link never names it.
 - When the amount is missing, ask for it.
@@ -111,7 +114,8 @@ cases.
 ## Test links
 
 Open this page on a phone with your build installed and tap each link. The account is the
-widely published example IBAN, so nothing reaches a real person.
+widely published example IBAN, which may still belong to someone, so stop at the filled-in form
+and do not authorise. Use your own test account for an end-to-end run.
 
 | Link | Expected |
 | --- | --- |
@@ -122,7 +126,7 @@ widely published example IBAN, so nothing reaches a real person.
 | `payto://iban/DE89370400440532013000?receiver-name=Example%20Payee&instruction=E2E-1` | Refused: end-to-end identifier |
 
 GitHub shows these as text. The same table with tappable links is on
-[ledgerinnovation.com/euvena/payto](https://ledgerinnovation.com/euvena/payto/).
+[ledgerinnovation.com/euvena/payto](https://ledgerinnovation.com/euvena/payto/#test-links).
 
 On Android you can also fire a link from a computer:
 
