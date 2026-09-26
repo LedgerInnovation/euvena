@@ -8,3 +8,8 @@ web-build/
 # system, so android/ and ios/ are produced by prebuild rather than committed.
 /android
 /ios
+
+# Store material (listings, review notes, questionnaire answers, EAS Metadata
+# config) is kept on the publisher's machine, not in the repository.
+/store/
+/store.config.json
